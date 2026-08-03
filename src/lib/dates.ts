@@ -8,8 +8,8 @@ export function monthKey(value: string | Date): string {
 }
 
 export function monthKeyToDate(key: string): Date {
-  const [year, month] = key.split("-").map(Number);
-  return new Date(year, (month ?? 1) - 1, 1);
+  const [year, month] = key.split("-");
+  return new Date(Number(year), Number(month ?? 1) - 1, 1);
 }
 
 export function shiftMonth(key: string, amount: number): string {
