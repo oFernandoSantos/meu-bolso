@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as GastosIndexRouteImport } from './routes/gastos.index'
+import { Route as GastosNovoRouteImport } from './routes/gastos.novo'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -22,30 +23,39 @@ const GastosIndexRoute = GastosIndexRouteImport.update({
   path: '/gastos/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const GastosNovoRoute = GastosNovoRouteImport.update({
+  id: '/gastos/novo',
+  path: '/gastos/novo',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/gastos/novo': typeof GastosNovoRoute
   '/gastos/': typeof GastosIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/gastos/novo': typeof GastosNovoRoute
   '/gastos': typeof GastosIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/gastos/novo': typeof GastosNovoRoute
   '/gastos/': typeof GastosIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/gastos/'
+  fullPaths: '/' | '/gastos/novo' | '/gastos/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/gastos'
-  id: '__root__' | '/' | '/gastos/'
+  to: '/' | '/gastos/novo' | '/gastos'
+  id: '__root__' | '/' | '/gastos/novo' | '/gastos/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  GastosNovoRoute: typeof GastosNovoRoute
   GastosIndexRoute: typeof GastosIndexRoute
 }
 
@@ -65,11 +75,19 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof GastosIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/gastos/novo': {
+      id: '/gastos/novo'
+      path: '/gastos/novo'
+      fullPath: '/gastos/novo'
+      preLoaderRoute: typeof GastosNovoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  GastosNovoRoute: GastosNovoRoute,
   GastosIndexRoute: GastosIndexRoute,
 }
 export const routeTree = rootRouteImport
