@@ -10,7 +10,9 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as CartoesIndexRouteImport } from './routes/cartoes.index'
 import { Route as GastosIndexRouteImport } from './routes/gastos.index'
+import { Route as GastosIdRouteImport } from './routes/gastos.$id'
 import { Route as GastosNovoRouteImport } from './routes/gastos.novo'
 
 const IndexRoute = IndexRouteImport.update({
@@ -18,9 +20,19 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CartoesIndexRoute = CartoesIndexRouteImport.update({
+  id: '/cartoes/',
+  path: '/cartoes/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const GastosIndexRoute = GastosIndexRouteImport.update({
   id: '/gastos/',
   path: '/gastos/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GastosIdRoute = GastosIdRouteImport.update({
+  id: '/gastos/$id',
+  path: '/gastos/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
 const GastosNovoRoute = GastosNovoRouteImport.update({
@@ -31,31 +43,40 @@ const GastosNovoRoute = GastosNovoRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/gastos/$id': typeof GastosIdRoute
   '/gastos/novo': typeof GastosNovoRoute
+  '/cartoes/': typeof CartoesIndexRoute
   '/gastos/': typeof GastosIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/gastos/$id': typeof GastosIdRoute
   '/gastos/novo': typeof GastosNovoRoute
+  '/cartoes': typeof CartoesIndexRoute
   '/gastos': typeof GastosIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/gastos/$id': typeof GastosIdRoute
   '/gastos/novo': typeof GastosNovoRoute
+  '/cartoes/': typeof CartoesIndexRoute
   '/gastos/': typeof GastosIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/gastos/novo' | '/gastos/'
+  fullPaths: '/' | '/gastos/$id' | '/gastos/novo' | '/cartoes/' | '/gastos/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/gastos/novo' | '/gastos'
-  id: '__root__' | '/' | '/gastos/novo' | '/gastos/'
+  to: '/' | '/gastos/$id' | '/gastos/novo' | '/cartoes' | '/gastos'
+  id:
+    '__root__' | '/' | '/gastos/$id' | '/gastos/novo' | '/cartoes/' | '/gastos/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  GastosIdRoute: typeof GastosIdRoute
   GastosNovoRoute: typeof GastosNovoRoute
+  CartoesIndexRoute: typeof CartoesIndexRoute
   GastosIndexRoute: typeof GastosIndexRoute
 }
 
@@ -68,11 +89,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/cartoes/': {
+      id: '/cartoes/'
+      path: '/cartoes'
+      fullPath: '/cartoes/'
+      preLoaderRoute: typeof CartoesIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/gastos/': {
       id: '/gastos/'
       path: '/gastos'
       fullPath: '/gastos/'
       preLoaderRoute: typeof GastosIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/gastos/$id': {
+      id: '/gastos/$id'
+      path: '/gastos/$id'
+      fullPath: '/gastos/$id'
+      preLoaderRoute: typeof GastosIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/gastos/novo': {
@@ -87,7 +122,9 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  GastosIdRoute: GastosIdRoute,
   GastosNovoRoute: GastosNovoRoute,
+  CartoesIndexRoute: CartoesIndexRoute,
   GastosIndexRoute: GastosIndexRoute,
 }
 export const routeTree = rootRouteImport
