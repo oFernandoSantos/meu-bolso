@@ -114,7 +114,13 @@ export const useAppStore = create<AppState>()((set, get) => ({
   },
 
   deleteCard: (id) => {
-    set((state) => ({ cards: state.cards.filter((card) => card.id !== id) }));
+    set((state) => ({
+      cards: state.cards.filter((card) => card.id !== id),
+      // Gastos ficam registrados, mas sem cartão vinculado.
+      expenses: state.expenses.map((expense) =>
+        expense.card_id === id ? { ...expense, card_id: null } : expense,
+      ),
+    }));
     persist(get());
   },
 
