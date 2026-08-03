@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ConfigRouteImport } from './routes/config'
 import { Route as CartoesIndexRouteImport } from './routes/cartoes.index'
 import { Route as CartoesIdRouteImport } from './routes/cartoes.$id'
 import { Route as CartoesNovoRouteImport } from './routes/cartoes.novo'
@@ -23,6 +24,11 @@ import { Route as GastosNovoRouteImport } from './routes/gastos.novo'
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ConfigRoute = ConfigRouteImport.update({
+  id: '/config',
+  path: '/config',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CartoesIndexRoute = CartoesIndexRouteImport.update({
@@ -73,6 +79,7 @@ const GastosNovoRoute = GastosNovoRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/config': typeof ConfigRoute
   '/cartoes/$id': typeof CartoesIdRoute
   '/cartoes/novo': typeof CartoesNovoRoute
   '/categorias/$id': typeof CategoriasIdRoute
@@ -85,6 +92,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/config': typeof ConfigRoute
   '/cartoes/$id': typeof CartoesIdRoute
   '/cartoes/novo': typeof CartoesNovoRoute
   '/categorias/$id': typeof CategoriasIdRoute
@@ -98,6 +106,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/config': typeof ConfigRoute
   '/cartoes/$id': typeof CartoesIdRoute
   '/cartoes/novo': typeof CartoesNovoRoute
   '/categorias/$id': typeof CategoriasIdRoute
@@ -112,6 +121,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/config'
     | '/cartoes/$id'
     | '/cartoes/novo'
     | '/categorias/$id'
@@ -124,6 +134,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/config'
     | '/cartoes/$id'
     | '/cartoes/novo'
     | '/categorias/$id'
@@ -136,6 +147,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/config'
     | '/cartoes/$id'
     | '/cartoes/novo'
     | '/categorias/$id'
@@ -149,6 +161,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ConfigRoute: typeof ConfigRoute
   CartoesIdRoute: typeof CartoesIdRoute
   CartoesNovoRoute: typeof CartoesNovoRoute
   CategoriasIdRoute: typeof CategoriasIdRoute
@@ -167,6 +180,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/config': {
+      id: '/config'
+      path: '/config'
+      fullPath: '/config'
+      preLoaderRoute: typeof ConfigRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/cartoes/': {
@@ -237,6 +257,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ConfigRoute: ConfigRoute,
   CartoesIdRoute: CartoesIdRoute,
   CartoesNovoRoute: CartoesNovoRoute,
   CategoriasIdRoute: CategoriasIdRoute,
