@@ -26,16 +26,27 @@ const DEFAULT_CATEGORIES: { name: string; icon: string; color: string }[] = [
   { name: "Outros", icon: "circle-dashed", color: "#64748b" },
 ];
 
+/** Slug estável: mantém o mesmo id no servidor e no navegador (evita mismatch). */
+function slugify(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+const SEED_TIMESTAMP = "2024-01-01T00:00:00.000Z";
+
 export function seedCategories(): Category[] {
-  const timestamp = now();
   return DEFAULT_CATEGORIES.map((category) => ({
-    id: createId(),
+    id: `cat-${slugify(category.name)}`,
     name: category.name,
     icon: category.icon,
     color: category.color,
     active: true,
-    created_at: timestamp,
-    updated_at: timestamp,
+    created_at: SEED_TIMESTAMP,
+    updated_at: SEED_TIMESTAMP,
   }));
 }
 
