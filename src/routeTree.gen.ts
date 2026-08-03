@@ -11,6 +11,8 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as CartoesIndexRouteImport } from './routes/cartoes.index'
+import { Route as CartoesIdRouteImport } from './routes/cartoes.$id'
+import { Route as CartoesNovoRouteImport } from './routes/cartoes.novo'
 import { Route as GastosIndexRouteImport } from './routes/gastos.index'
 import { Route as GastosIdRouteImport } from './routes/gastos.$id'
 import { Route as GastosNovoRouteImport } from './routes/gastos.novo'
@@ -23,6 +25,16 @@ const IndexRoute = IndexRouteImport.update({
 const CartoesIndexRoute = CartoesIndexRouteImport.update({
   id: '/cartoes/',
   path: '/cartoes/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CartoesIdRoute = CartoesIdRouteImport.update({
+  id: '/cartoes/$id',
+  path: '/cartoes/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CartoesNovoRoute = CartoesNovoRouteImport.update({
+  id: '/cartoes/novo',
+  path: '/cartoes/novo',
   getParentRoute: () => rootRouteImport,
 } as any)
 const GastosIndexRoute = GastosIndexRouteImport.update({
@@ -43,6 +55,8 @@ const GastosNovoRoute = GastosNovoRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/cartoes/$id': typeof CartoesIdRoute
+  '/cartoes/novo': typeof CartoesNovoRoute
   '/gastos/$id': typeof GastosIdRoute
   '/gastos/novo': typeof GastosNovoRoute
   '/cartoes/': typeof CartoesIndexRoute
@@ -50,6 +64,8 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/cartoes/$id': typeof CartoesIdRoute
+  '/cartoes/novo': typeof CartoesNovoRoute
   '/gastos/$id': typeof GastosIdRoute
   '/gastos/novo': typeof GastosNovoRoute
   '/cartoes': typeof CartoesIndexRoute
@@ -58,6 +74,8 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/cartoes/$id': typeof CartoesIdRoute
+  '/cartoes/novo': typeof CartoesNovoRoute
   '/gastos/$id': typeof GastosIdRoute
   '/gastos/novo': typeof GastosNovoRoute
   '/cartoes/': typeof CartoesIndexRoute
@@ -65,15 +83,38 @@ export interface FileRoutesById {
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/gastos/$id' | '/gastos/novo' | '/cartoes/' | '/gastos/'
+  fullPaths:
+    | '/'
+    | '/cartoes/$id'
+    | '/cartoes/novo'
+    | '/gastos/$id'
+    | '/gastos/novo'
+    | '/cartoes/'
+    | '/gastos/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/gastos/$id' | '/gastos/novo' | '/cartoes' | '/gastos'
+  to:
+    | '/'
+    | '/cartoes/$id'
+    | '/cartoes/novo'
+    | '/gastos/$id'
+    | '/gastos/novo'
+    | '/cartoes'
+    | '/gastos'
   id:
-    '__root__' | '/' | '/gastos/$id' | '/gastos/novo' | '/cartoes/' | '/gastos/'
+    | '__root__'
+    | '/'
+    | '/cartoes/$id'
+    | '/cartoes/novo'
+    | '/gastos/$id'
+    | '/gastos/novo'
+    | '/cartoes/'
+    | '/gastos/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  CartoesIdRoute: typeof CartoesIdRoute
+  CartoesNovoRoute: typeof CartoesNovoRoute
   GastosIdRoute: typeof GastosIdRoute
   GastosNovoRoute: typeof GastosNovoRoute
   CartoesIndexRoute: typeof CartoesIndexRoute
@@ -94,6 +135,20 @@ declare module '@tanstack/react-router' {
       path: '/cartoes'
       fullPath: '/cartoes/'
       preLoaderRoute: typeof CartoesIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/cartoes/$id': {
+      id: '/cartoes/$id'
+      path: '/cartoes/$id'
+      fullPath: '/cartoes/$id'
+      preLoaderRoute: typeof CartoesIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/cartoes/novo': {
+      id: '/cartoes/novo'
+      path: '/cartoes/novo'
+      fullPath: '/cartoes/novo'
+      preLoaderRoute: typeof CartoesNovoRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/gastos/': {
@@ -122,6 +177,8 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  CartoesIdRoute: CartoesIdRoute,
+  CartoesNovoRoute: CartoesNovoRoute,
   GastosIdRoute: GastosIdRoute,
   GastosNovoRoute: GastosNovoRoute,
   CartoesIndexRoute: CartoesIndexRoute,
