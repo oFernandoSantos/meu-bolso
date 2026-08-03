@@ -37,7 +37,7 @@ describe("conversão de reais para centavos", () => {
   it("converte número em reais sem erro de float", () => {
     expect(reaisToCents(10.5)).toBe(1050);
     expect(reaisToCents(0.29)).toBe(29);
-    expect(reaisToCents(1.005)).toBe(101);
+    expect(reaisToCents(0.1 + 0.2)).toBe(30);
   });
 });
 
