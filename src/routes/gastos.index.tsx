@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { ArrowDownUp, Receipt, Search } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
@@ -42,7 +42,6 @@ export const Route = createFileRoute("/gastos/")({
 type SortOption = "recent" | "oldest" | "highest" | "lowest";
 
 function ExpensesPage() {
-  const navigate = useNavigate();
   const { month, setMonth } = useMonthStore();
   const entries = useMonthEntries(month);
   const cards = useAppStore((state) => state.cards);
@@ -169,7 +168,6 @@ function ExpensesPage() {
         </div>
       </div>
       <FloatingAddButton />
-      <button type="button" hidden onClick={() => navigate({ to: "/gastos/novo" })} />
     </AppShell>
   );
 }
