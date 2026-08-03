@@ -90,6 +90,7 @@ export function CardForm({ defaultValues, submitLabel, onSubmit }: CardFormProps
             <Label htmlFor="limit">Limite</Label>
             <CurrencyInput
               id="limit"
+              ariaLabel="Limite"
               value={form.watch("credit_limit") ?? 0}
               onChange={(cents) => form.setValue("credit_limit", cents)}
             />

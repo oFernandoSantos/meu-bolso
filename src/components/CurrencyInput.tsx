@@ -7,6 +7,7 @@ interface CurrencyInputProps {
   onChange: (cents: number) => void;
   autoFocus?: boolean;
   id?: string;
+  ariaLabel?: string;
   className?: string;
 }
 
@@ -14,7 +15,14 @@ interface CurrencyInputProps {
  * Entrada monetária brasileira: cada dígito entra pelos centavos.
  * 1 -> R$ 0,01 | 125090 -> R$ 1.250,90
  */
-export function CurrencyInput({ value, onChange, autoFocus, id, className }: CurrencyInputProps) {
+export function CurrencyInput({
+  value,
+  onChange,
+  autoFocus,
+  id,
+  ariaLabel = "Valor",
+  className,
+}: CurrencyInputProps) {
   const [digits, setDigits] = useState(value ? String(value) : "");
 
   useEffect(() => {
@@ -33,7 +41,7 @@ export function CurrencyInput({ value, onChange, autoFocus, id, className }: Cur
         id={id}
         autoFocus={autoFocus}
         inputMode="numeric"
-        aria-label="Valor"
+        aria-label={ariaLabel}
         className="num w-full bg-transparent text-right text-2xl font-bold outline-none"
         value={formatAmount(digitsToCents(digits))}
         onChange={(event) => {
