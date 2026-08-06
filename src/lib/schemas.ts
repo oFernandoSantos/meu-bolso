@@ -2,7 +2,7 @@ import { z } from "zod";
 
 export const expenseSchema = z
   .object({
-    description: z.string().trim().min(1, "Informe a descrição"),
+    description: z.string().trim().min(1, "Informe a descricao"),
     total_amount: z.number().int().positive("Informe um valor maior que zero"),
     expense_date: z.string().min(1, "Informe a data"),
     payment_method: z.enum(["credit", "debit", "pix", "cash", "other"]),
@@ -16,10 +16,10 @@ export const expenseSchema = z
       data.payment_method === "credit" || data.payment_method === "debit"
         ? Boolean(data.card_id)
         : true,
-    { message: "Escolha um cartão", path: ["card_id"] },
+    { message: "Escolha um cartao", path: ["card_id"] },
   )
   .refine((data) => (data.payment_method === "credit" ? true : data.installment_count === 1), {
-    message: "Somente crédito pode ser parcelado",
+    message: "Somente credito pode ser parcelado",
     path: ["installment_count"],
   });
 
@@ -27,7 +27,7 @@ export type ExpenseFormValues = z.infer<typeof expenseSchema>;
 
 export const cardSchema = z
   .object({
-    name: z.string().trim().min(1, "Informe o nome do cartão"),
+    name: z.string().trim().min(1, "Informe o nome do cartao"),
     institution: z.string().nullable(),
     type: z.enum(["credit", "debit", "both"]),
     credit_limit: z.number().int().min(0).nullable(),

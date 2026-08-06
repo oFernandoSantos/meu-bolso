@@ -42,7 +42,12 @@ export function CardForm({ defaultValues, submitLabel, onSubmit }: CardFormProps
     <form className="space-y-6" onSubmit={form.handleSubmit(onSubmit)} noValidate>
       <div className="space-y-2">
         <Label htmlFor="name">Nome do cartão</Label>
-        <Input id="name" className="h-12 rounded-xl" placeholder="Ex.: Nubank" {...form.register("name")} />
+        <Input
+          id="name"
+          className="h-12 rounded-xl"
+          placeholder="Ex.: Nubank"
+          {...form.register("name")}
+        />
         {errors.name ? <p className="text-xs text-destructive">{errors.name.message}</p> : null}
       </div>
 
@@ -106,7 +111,10 @@ export function CardForm({ defaultValues, submitLabel, onSubmit }: CardFormProps
                 className="h-12 rounded-xl"
                 value={form.watch("closing_day") ?? ""}
                 onChange={(event) =>
-                  form.setValue("closing_day", event.target.value ? Number(event.target.value) : null)
+                  form.setValue(
+                    "closing_day",
+                    event.target.value ? Number(event.target.value) : null,
+                  )
                 }
               />
             </div>

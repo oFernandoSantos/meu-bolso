@@ -26,6 +26,9 @@ export function ConfirmDialog({
   confirmLabel = "Excluir",
   onConfirm,
 }: ConfirmDialogProps) {
+  const destructive =
+    confirmLabel.toLowerCase().includes("excluir") || confirmLabel.toLowerCase().includes("apagar");
+
   return (
     <AlertDialog>
       <AlertDialogTrigger asChild>{trigger}</AlertDialogTrigger>
@@ -36,7 +39,16 @@ export function ConfirmDialog({
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>Cancelar</AlertDialogCancel>
-          <AlertDialogAction onClick={onConfirm}>{confirmLabel}</AlertDialogAction>
+          <AlertDialogAction
+            onClick={onConfirm}
+            className={
+              destructive
+                ? "border border-[#b00020] bg-transparent text-[#b00020] hover:bg-[#b00020]/10"
+                : undefined
+            }
+          >
+            {confirmLabel}
+          </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>

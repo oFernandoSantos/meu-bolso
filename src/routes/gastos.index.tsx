@@ -79,7 +79,10 @@ function ExpensesPage() {
     });
 
   return (
-    <AppShell title="Gastos" subtitle={`${filtered.length} lançamentos · ${formatCurrency(sumEntries(filtered))}`}>
+    <AppShell
+      title="Gastos"
+      subtitle={`${filtered.length} lançamentos · ${formatCurrency(sumEntries(filtered))}`}
+    >
       <div className="space-y-4">
         <MonthSelector month={month} onChange={setMonth} />
 

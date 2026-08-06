@@ -5,7 +5,6 @@ import { useAppStore } from "@/store/useAppStore";
 export function AppBootstrap() {
   const hydrate = useAppStore((state) => state.hydrate);
   const hydrated = useAppStore((state) => state.hydrated);
-  const theme = useAppStore((state) => state.settings.theme);
 
   useEffect(() => {
     hydrate();
@@ -13,19 +12,8 @@ export function AppBootstrap() {
 
   useEffect(() => {
     if (!hydrated || typeof window === "undefined") return;
-    const root = document.documentElement;
-    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)");
-
-    const apply = () => {
-      const dark = theme === "dark" || (theme === "system" && prefersDark.matches);
-      root.classList.toggle("dark", dark);
-    };
-
-    apply();
-    if (theme !== "system") return;
-    prefersDark.addEventListener("change", apply);
-    return () => prefersDark.removeEventListener("change", apply);
-  }, [theme, hydrated]);
+    document.documentElement.classList.add("dark");
+  }, [hydrated]);
 
   return null;
 }

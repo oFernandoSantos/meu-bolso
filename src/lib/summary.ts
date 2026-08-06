@@ -1,13 +1,6 @@
 import { monthKey, shiftMonth } from "./dates";
 import { splitInstallments } from "./money";
-import type {
-  Card,
-  Category,
-  EntryView,
-  Expense,
-  Installment,
-  PaymentMethod,
-} from "./types";
+import type { Card, Category, EntryView, Expense, Installment, PaymentMethod } from "./types";
 import { createId } from "./storage";
 
 export interface ExpenseInput {
@@ -21,7 +14,7 @@ export interface ExpenseInput {
   notes: string | null;
 }
 
-/** Gera as parcelas de um gasto, uma por mês de competência. */
+/** Gera parcelas de um gasto, uma por mes de competencia. */
 export function buildInstallments(expense: Expense): Installment[] {
   const count = expense.payment_method === "credit" ? Math.max(1, expense.installment_count) : 1;
   const amounts = splitInstallments(expense.total_amount, count);
@@ -51,7 +44,7 @@ export function normalizeExpenseInput(input: ExpenseInput): ExpenseInput {
   };
 }
 
-/** Junta parcelas + gasto + cartão + categoria de um mês. */
+/** Junta parcelas, gasto, cartao e categoria de um mes. */
 export function entriesForMonth(
   month: string,
   expenses: Expense[],
@@ -72,7 +65,7 @@ export function entriesForMonth(
         {
           installment,
           expense,
-          card: expense.card_id ? cardById.get(expense.card_id) ?? null : null,
+          card: expense.card_id ? (cardById.get(expense.card_id) ?? null) : null,
           category: categoryById.get(expense.category_id) ?? null,
         },
       ];

@@ -1,12 +1,5 @@
 import { create } from "zustand";
-import type {
-  Card,
-  Category,
-  Database,
-  Expense,
-  Installment,
-  ThemeMode,
-} from "@/lib/types";
+import type { Card, Category, Database, Expense, Installment, ThemeMode } from "@/lib/types";
 import { createId, emptyDatabase, loadDatabase, saveDatabase } from "@/lib/storage";
 import { buildInstallments, normalizeExpenseInput, type ExpenseInput } from "@/lib/summary";
 
@@ -99,7 +92,10 @@ export const useAppStore = create<AppState>()((set, get) => ({
   addCard: (input) => {
     const timestamp = new Date().toISOString();
     set((state) => ({
-      cards: [...state.cards, { id: createId(), ...input, created_at: timestamp, updated_at: timestamp }],
+      cards: [
+        ...state.cards,
+        { id: createId(), ...input, created_at: timestamp, updated_at: timestamp },
+      ],
     }));
     persist(get());
   },

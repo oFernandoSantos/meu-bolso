@@ -29,7 +29,10 @@ export function digitsToCents(input: string): number {
 
 /** "1.250,90" ou "1250,90" -> 125090 */
 export function parseCurrencyToCents(text: string): number {
-  const clean = text.replace(/[^\d,.-]/g, "").replace(/\./g, "").replace(",", ".");
+  const clean = text
+    .replace(/[^\d,.-]/g, "")
+    .replace(/\./g, "")
+    .replace(",", ".");
   const value = Number.parseFloat(clean);
   if (!Number.isFinite(value)) return 0;
   return Math.round(value * 100);

@@ -1,15 +1,20 @@
-import { addMonths, format, parseISO } from "date-fns";
+import { addMonths, addWeeks, addYears, format, isValid, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
+
+function safeDate(value: string | Date): Date {
+  const parsed = typeof value === "string" ? parseISO(value) : value;
+  return isValid(parsed) ? parsed : new Date();
+}
 
 /** "2026-07" a partir de "2026-07-26" ou Date */
 export function monthKey(value: string | Date): string {
-  const date = typeof value === "string" ? parseISO(value) : value;
-  return format(date, "yyyy-MM");
+  return format(safeDate(value), "yyyy-MM");
 }
 
 export function monthKeyToDate(key: string): Date {
   const [year, month] = key.split("-");
-  return new Date(Number(year), Number(month ?? 1) - 1, 1);
+  const parsed = new Date(Number(year), Number(month ?? 1) - 1, 1);
+  return isValid(parsed) ? parsed : new Date();
 }
 
 export function shiftMonth(key: string, amount: number): string {
@@ -32,11 +37,22 @@ export function monthName(key: string): string {
 
 /** "26/07/2026" */
 export function formatDateBR(iso: string): string {
-  return format(parseISO(iso), "dd/MM/yyyy");
+  return format(safeDate(iso), "dd/MM/yyyy");
 }
 
 export function todayISO(): string {
   return format(new Date(), "yyyy-MM-dd");
+}
+
+export function shiftDateISO(iso: string, mode: "week" | "month" | "year", amount: number): string {
+  const date = safeDate(iso);
+  const shifted =
+    mode === "week"
+      ? addWeeks(date, amount)
+      : mode === "month"
+        ? addMonths(date, amount)
+        : addYears(date, amount);
+  return format(shifted, "yyyy-MM-dd");
 }
 
 export function capitalize(text: string): string {

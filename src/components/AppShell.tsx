@@ -1,6 +1,7 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import { CreditCard, Home, Receipt, Settings, Tags } from "lucide-react";
 import type { ReactNode } from "react";
+import logoLogin from "../../assets/logo-login.png";
 import { cn } from "@/lib/utils";
 
 const tabs = [
@@ -24,11 +25,20 @@ export function TabBar() {
               <Link
                 to={tab.to}
                 className={cn(
-                  "flex flex-col items-center gap-1 py-2.5 text-[0.7rem] font-medium transition-colors",
-                  active ? "text-primary" : "text-muted-foreground",
+                  "flex flex-col items-center gap-1 py-2 text-[0.7rem] font-medium transition-colors",
+                  active ? "text-violet-400" : "text-muted-foreground",
                 )}
               >
-                <Icon className="size-5" strokeWidth={active ? 2.4 : 1.8} />
+                <span
+                  className={cn(
+                    "flex size-12 items-center justify-center rounded-full border transition-colors",
+                    active
+                      ? "border-violet-500 bg-black text-violet-400"
+                      : "border-transparent bg-transparent text-muted-foreground",
+                  )}
+                >
+                  <Icon className="size-5" strokeWidth={active ? 2.4 : 1.8} />
+                </span>
                 {tab.label}
               </Link>
             </li>
@@ -45,29 +55,58 @@ interface AppShellProps {
   action?: ReactNode;
   children: ReactNode;
   withTabs?: boolean;
+  showBrandHeader?: boolean;
 }
 
-export function AppShell({ title, subtitle, action, children, withTabs = true }: AppShellProps) {
+export function AppShell({
+  title,
+  subtitle,
+  action,
+  children,
+  withTabs = true,
+  showBrandHeader = false,
+}: AppShellProps) {
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
+  const normalizedTitle = title.toLowerCase();
+  const isHomeHeader = normalizedTitle.includes("in");
+  const showBrand = showBrandHeader || isHomeHeader || (withTabs && pathname === "/");
+  const leftAction = withTabs ? null : action;
+  const rightAction = withTabs ? (
+    <Link
+      to="/config"
+      aria-label="Configurações"
+      className="flex size-9 items-center justify-center rounded-full border border-border/70 bg-card text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+    >
+      <Settings className="size-4" />
+    </Link>
+  ) : null;
+
   return (
     <div className="app-shell relative pb-28">
-      <header className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-border/70 bg-background/90 px-5 py-4 backdrop-blur">
-        <div className="min-w-0">
-          <h1 className="truncate text-lg font-semibold">{title}</h1>
-          {subtitle ? (
-            <p className="truncate text-xs text-muted-foreground">{subtitle}</p>
-          ) : null}
-        </div>
-        <div className="flex shrink-0 items-center gap-1">
-          {action}
-          {withTabs ? (
-            <Link
-              to="/config"
-              aria-label="Configurações"
-              className="rounded-full p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-            >
-              <Settings className="size-5" />
-            </Link>
-          ) : null}
+      <header className="sticky top-0 z-30 border-b border-border/70 bg-background/90 px-5 py-3 backdrop-blur">
+        <div className="grid grid-cols-[2.25rem_minmax(0,1fr)_2.25rem] items-center gap-3">
+          <div className="flex h-9 items-center justify-center">
+            {leftAction ?? <span className="block size-9" aria-hidden="true" />}
+          </div>
+          <div className="min-w-0 text-center">
+            {showBrand ? (
+              <img
+                src={logoLogin}
+                alt="Meu Bolso"
+                className="mx-auto h-8 w-auto object-contain sm:h-9"
+              />
+            ) : (
+              <>
+                <h1 className="truncate text-[0.98rem] font-semibold leading-5">{title}</h1>
+                {subtitle ? (
+                  <p className="truncate pt-0.5 text-[0.68rem] text-muted-foreground">{subtitle}</p>
+                ) : null}
+              </>
+            )}
+          </div>
+          <div className="flex h-9 items-center justify-center">
+            {rightAction ?? <span className="block size-9" aria-hidden="true" />}
+          </div>
         </div>
       </header>
       <main className="px-5 py-5">{children}</main>

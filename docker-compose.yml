@@ -1,0 +1,86 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: meu-bolso-postgres
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_dados:/var/lib/postgresql/data
+      - ./banco/migrations:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - privada
+
+  backend:
+    build:
+      context: ./backend
+    container_name: meu-bolso-backend
+    restart: unless-stopped
+    env_file:
+      - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - publica
+      - privada
+
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: meu-bolso-nginx
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./infraestrutura/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./infraestrutura/nginx/conf.d:/etc/nginx/conf.d:ro
+    networks:
+      - publica
+
+  backup:
+    image: postgres:16-alpine
+    container_name: meu-bolso-backup
+    restart: unless-stopped
+    env_file:
+      - .env
+    entrypoint: ["/bin/sh", "/scripts/backup-banco.sh"]
+    volumes:
+      - ./infraestrutura/scripts:/scripts:ro
+      - ./infraestrutura/backups/arquivos:/backups
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - privada
+
+  uptime-kuma:
+    image: louislam/uptime-kuma:1
+    container_name: meu-bolso-monitoramento
+    restart: unless-stopped
+    volumes:
+      - uptime_kuma_dados:/app/data
+    networks:
+      - publica
+      - monitoramento
+
+volumes:
+  postgres_dados:
+  uptime_kuma_dados:
+
+networks:
+  publica:
+  privada:
+    internal: true
+  monitoramento:

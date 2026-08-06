@@ -72,9 +72,9 @@ function ExpenseDetailPage() {
       type="button"
       aria-label="Voltar"
       onClick={() => (editing ? setEditing(false) : navigate({ to: "/gastos" }))}
-      className="rounded-full p-2 text-muted-foreground hover:bg-muted"
+      className="flex size-9 items-center justify-center rounded-full border border-border/70 bg-card text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
     >
-      <ArrowLeft className="size-5" />
+      <ArrowLeft className="size-4" />
     </button>
   );
 
@@ -162,8 +162,8 @@ function ExpenseDetailPage() {
               navigate({ to: "/gastos" });
             }}
             trigger={
-              <Button variant="outline" className="h-12 flex-1 rounded-xl text-destructive">
-                <Trash2 className="size-4" /> Excluir
+              <Button variant="outline" className="h-12 flex-1 rounded-xl text-[#b00020]">
+                <Trash2 className="size-4 text-[#b00020]" /> Excluir
               </Button>
             }
           />

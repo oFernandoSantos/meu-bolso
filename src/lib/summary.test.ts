@@ -85,7 +85,12 @@ const notebook = makeExpense({
 });
 
 const pix = makeExpense({ id: "e3", description: "Almoço", total_amount: 3000 });
-const dinheiro = makeExpense({ id: "e4", description: "Feira", total_amount: 5000, payment_method: "cash" });
+const dinheiro = makeExpense({
+  id: "e4",
+  description: "Feira",
+  total_amount: 5000,
+  payment_method: "cash",
+});
 
 const expenses = [mercado, notebook, pix, dinheiro];
 const installments = expenses.flatMap((expense) => buildInstallments(expense));

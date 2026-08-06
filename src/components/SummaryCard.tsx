@@ -14,10 +14,7 @@ export function SummaryCard({ label, amount, icon, highlight, className }: Summa
   if (highlight) {
     return (
       <div
-        className={cn(
-          "card-soft bg-primary p-5 text-primary-foreground shadow-float",
-          className,
-        )}
+        className={cn("card-soft bg-primary p-5 text-primary-foreground shadow-float", className)}
       >
         <p className="text-xs font-medium opacity-80">{label}</p>
         <p className="num mt-1 text-3xl font-bold">{formatCurrency(amount)}</p>

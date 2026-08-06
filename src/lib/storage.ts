@@ -1,4 +1,4 @@
-import type { Card, Category, Database } from "./types";
+import type { Card, Category, Database, Expense, Installment, Settings } from "./types";
 
 export const STORAGE_KEY = "gastos.db.v1";
 
@@ -9,15 +9,13 @@ export function createId(): string {
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
-const now = () => new Date().toISOString();
-
 const DEFAULT_CATEGORIES: { name: string; icon: string; color: string }[] = [
-  { name: "Alimentação", icon: "utensils", color: "#f97316" },
+  { name: "Alimentacao", icon: "utensils", color: "#f97316" },
   { name: "Mercado", icon: "shopping-cart", color: "#16a34a" },
   { name: "Transporte", icon: "car", color: "#0ea5e9" },
   { name: "Moradia", icon: "home", color: "#8b5cf6" },
-  { name: "Saúde", icon: "heart-pulse", color: "#ef4444" },
-  { name: "Educação", icon: "graduation-cap", color: "#2563eb" },
+  { name: "Saude", icon: "heart-pulse", color: "#ef4444" },
+  { name: "Educacao", icon: "graduation-cap", color: "#2563eb" },
   { name: "Lazer", icon: "gamepad-2", color: "#ec4899" },
   { name: "Compras", icon: "shopping-bag", color: "#eab308" },
   { name: "Assinaturas", icon: "repeat", color: "#14b8a6" },
@@ -26,7 +24,7 @@ const DEFAULT_CATEGORIES: { name: string; icon: string; color: string }[] = [
   { name: "Outros", icon: "circle-dashed", color: "#64748b" },
 ];
 
-/** Slug estável: mantém o mesmo id no servidor e no navegador (evita mismatch). */
+/** Slug estavel para ids previsiveis. */
 function slugify(value: string): string {
   return value
     .normalize("NFD")
@@ -56,7 +54,221 @@ export function emptyDatabase(): Database {
     categories: seedCategories(),
     expenses: [],
     installments: [],
-    settings: { theme: "system" },
+    settings: {
+      theme: "dark",
+      pluggy: {
+        item_id: null,
+        connector_name: null,
+        item_status: null,
+        last_sync_at: null,
+        last_error: null,
+        proxy_url: "http://localhost:8787",
+      },
+      auth: {
+        email: null,
+        password: null,
+        session_active: false,
+      },
+      monthly_income_by_month: {},
+    },
+  };
+}
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object";
+}
+
+function asString(value: unknown, fallback = ""): string {
+  return typeof value === "string" ? value : fallback;
+}
+
+function asNullableString(value: unknown): string | null {
+  return typeof value === "string" ? value : null;
+}
+
+function asNumber(value: unknown, fallback = 0): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+
+function asNullableNumber(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function asBoolean(value: unknown, fallback = false): boolean {
+  return typeof value === "boolean" ? value : fallback;
+}
+
+function asRecordOfNumbers(value: unknown): Record<string, number> {
+  if (!isObject(value)) return {};
+
+  return Object.entries(value).reduce<Record<string, number>>((acc, [key, item]) => {
+    if (typeof item === "number" && Number.isFinite(item)) {
+      acc[key] = item;
+    }
+    return acc;
+  }, {});
+}
+
+export function normalizeDatabase(input: unknown): Database {
+  const base = emptyDatabase();
+  if (!isObject(input)) return base;
+
+  const cards = Array.isArray(input["cards"])
+    ? input["cards"].flatMap((item): Card[] => {
+        if (!isObject(item)) return [];
+        const id = asString(item["id"]);
+        const name = asString(item["name"]);
+        if (!id || !name) return [];
+
+        return [
+          {
+            id,
+            name,
+            institution: asNullableString(item["institution"]),
+            type:
+              item["type"] === "credit" || item["type"] === "debit" || item["type"] === "both"
+                ? item["type"]
+                : "credit",
+            brand:
+              item["brand"] === "visa" ||
+              item["brand"] === "mastercard" ||
+              item["brand"] === "elo" ||
+              item["brand"] === "amex" ||
+              item["brand"] === "hipercard" ||
+              item["brand"] === "nubank" ||
+              item["brand"] === "unknown"
+                ? item["brand"]
+                : null,
+            last4: asNullableString(item["last4"]),
+            credit_limit: asNullableNumber(item["credit_limit"]),
+            closing_day: asNullableNumber(item["closing_day"]),
+            due_day: asNullableNumber(item["due_day"]),
+            color: asString(item["color"], "#0f766e"),
+            active: asBoolean(item["active"], true),
+            created_at: asString(item["created_at"], SEED_TIMESTAMP),
+            updated_at: asString(item["updated_at"], SEED_TIMESTAMP),
+          },
+        ];
+      })
+    : [];
+
+  const categories = Array.isArray(input["categories"])
+    ? input["categories"].flatMap((item): Category[] => {
+        if (!isObject(item)) return [];
+        const id = asString(item["id"]);
+        const name = asString(item["name"]);
+        if (!id || !name) return [];
+
+        return [
+          {
+            id,
+            name,
+            icon: asString(item["icon"], "circle"),
+            color: asString(item["color"], "#64748b"),
+            active: asBoolean(item["active"], true),
+            created_at: asString(item["created_at"], SEED_TIMESTAMP),
+            updated_at: asString(item["updated_at"], SEED_TIMESTAMP),
+          },
+        ];
+      })
+    : [];
+
+  const expenses = Array.isArray(input["expenses"])
+    ? input["expenses"].flatMap((item): Expense[] => {
+        if (!isObject(item)) return [];
+        const id = asString(item["id"]);
+        const description = asString(item["description"]);
+        const expense_date = asString(item["expense_date"]);
+        const category_id = asString(item["category_id"]);
+        if (!id || !description || !expense_date || !category_id) return [];
+
+        const payment_method =
+          item["payment_method"] === "credit" ||
+          item["payment_method"] === "debit" ||
+          item["payment_method"] === "pix" ||
+          item["payment_method"] === "cash" ||
+          item["payment_method"] === "other"
+            ? item["payment_method"]
+            : "cash";
+
+        return [
+          {
+            id,
+            description,
+            total_amount: asNumber(item["total_amount"]),
+            expense_date,
+            payment_method,
+            card_id: asNullableString(item["card_id"]),
+            category_id,
+            installment_count: Math.max(1, Math.floor(asNumber(item["installment_count"], 1))),
+            notes: asNullableString(item["notes"]),
+            created_at: asString(item["created_at"], SEED_TIMESTAMP),
+            updated_at: asString(item["updated_at"], SEED_TIMESTAMP),
+          },
+        ];
+      })
+    : [];
+
+  const installments = Array.isArray(input["installments"])
+    ? input["installments"].flatMap((item): Installment[] => {
+        if (!isObject(item)) return [];
+        const id = asString(item["id"]);
+        const expense_id = asString(item["expense_id"]);
+        const competence_month = asString(item["competence_month"]);
+        if (!id || !expense_id || !competence_month) return [];
+
+        return [
+          {
+            id,
+            expense_id,
+            installment_number: Math.max(1, Math.floor(asNumber(item["installment_number"], 1))),
+            installment_count: Math.max(1, Math.floor(asNumber(item["installment_count"], 1))),
+            amount: asNumber(item["amount"]),
+            competence_month,
+            created_at: asString(item["created_at"], SEED_TIMESTAMP),
+            updated_at: asString(item["updated_at"], SEED_TIMESTAMP),
+          },
+        ];
+      })
+    : [];
+
+  const settings: Settings = isObject(input["settings"])
+    ? {
+        theme:
+          input["settings"]["theme"] === "light" ||
+          input["settings"]["theme"] === "dark" ||
+          input["settings"]["theme"] === "system"
+            ? input["settings"]["theme"]
+            : "dark",
+        pluggy: isObject(input["settings"]["pluggy"])
+          ? {
+              item_id: asNullableString(input["settings"]["pluggy"]["item_id"]),
+              connector_name: asNullableString(input["settings"]["pluggy"]["connector_name"]),
+              item_status: asNullableString(input["settings"]["pluggy"]["item_status"]),
+              last_sync_at: asNullableString(input["settings"]["pluggy"]["last_sync_at"]),
+              last_error: asNullableString(input["settings"]["pluggy"]["last_error"]),
+              proxy_url:
+                asNullableString(input["settings"]["pluggy"]["proxy_url"]) ??
+                "http://localhost:8787",
+            }
+          : base.settings.pluggy,
+        auth: isObject(input["settings"]["auth"])
+          ? {
+              email: asNullableString(input["settings"]["auth"]["email"]),
+              password: asNullableString(input["settings"]["auth"]["password"]),
+              session_active: asBoolean(input["settings"]["auth"]["session_active"], false),
+            }
+          : base.settings.auth,
+        monthly_income_by_month: asRecordOfNumbers(input["settings"]["monthly_income_by_month"]),
+      }
+    : base.settings;
+
+  return {
+    cards,
+    categories: categories.length ? categories : base.categories,
+    expenses,
+    installments,
+    settings,
   };
 }
 
@@ -65,15 +277,7 @@ export function loadDatabase(): Database {
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (!raw) return emptyDatabase();
-    const parsed = JSON.parse(raw) as Partial<Database>;
-    const base = emptyDatabase();
-    return {
-      cards: parsed.cards ?? [],
-      categories: parsed.categories?.length ? parsed.categories : base.categories,
-      expenses: parsed.expenses ?? [],
-      installments: parsed.installments ?? [],
-      settings: { theme: parsed.settings?.theme ?? "system" },
-    };
+    return normalizeDatabase(JSON.parse(raw));
   } catch {
     return emptyDatabase();
   }
@@ -84,6 +288,6 @@ export function saveDatabase(db: Database): void {
   try {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
   } catch {
-    /* armazenamento indisponível */
+    /* armazenamento indisponivel */
   }
 }

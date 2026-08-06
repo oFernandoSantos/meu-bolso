@@ -30,9 +30,9 @@ function NewCategoryPage() {
           type="button"
           aria-label="Voltar"
           onClick={() => navigate({ to: "/categorias" })}
-          className="rounded-full p-2 text-muted-foreground hover:bg-muted"
+          className="flex size-9 items-center justify-center rounded-full border border-border/70 bg-card text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
         >
-          <ArrowLeft className="size-5" />
+          <ArrowLeft className="size-4" />
         </button>
       }
     >

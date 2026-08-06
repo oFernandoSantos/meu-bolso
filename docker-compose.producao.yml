@@ -1,0 +1,83 @@
+services:
+  supabase-kong:
+    image: kong:3.6
+    container_name: meu-bolso-supabase-kong
+    restart: unless-stopped
+    profiles: ["supabase"]
+    environment:
+      KONG_DATABASE: "off"
+      KONG_DECLARATIVE_CONFIG: /var/lib/kong/kong.yml
+      KONG_PROXY_ACCESS_LOG: /dev/stdout
+      KONG_ADMIN_ACCESS_LOG: /dev/stdout
+      KONG_PROXY_ERROR_LOG: /dev/stderr
+      KONG_ADMIN_ERROR_LOG: /dev/stderr
+      KONG_ADMIN_LISTEN: 0.0.0.0:8001
+    volumes:
+      - ./infraestrutura/supabase/kong.yml:/var/lib/kong/kong.yml:ro
+    networks:
+      - publica
+      - privada
+
+  supabase-auth:
+    image: supabase/gotrue:latest
+    container_name: meu-bolso-supabase-auth
+    restart: unless-stopped
+    profiles: ["supabase"]
+    env_file:
+      - .env
+    environment:
+      GOTRUE_SITE_URL: ${SITE_URL}
+      GOTRUE_URI_ALLOW_LIST: ${ORIGENS_PERMITIDAS}
+      GOTRUE_DB_DRIVER: postgres
+      GOTRUE_DB_DATABASE_URL: ${DATABASE_URL}
+      GOTRUE_JWT_SECRET: ${SUPABASE_JWT_SECRET}
+      GOTRUE_API_HOST: 0.0.0.0
+      GOTRUE_API_PORT: 9999
+    networks:
+      - privada
+
+  supabase-rest:
+    image: postgrest/postgrest:latest
+    container_name: meu-bolso-supabase-rest
+    restart: unless-stopped
+    profiles: ["supabase"]
+    env_file:
+      - .env
+    environment:
+      PGRST_DB_URI: ${DATABASE_URL}
+      PGRST_DB_SCHEMA: public
+      PGRST_DB_ANON_ROLE: anon
+      PGRST_JWT_SECRET: ${SUPABASE_JWT_SECRET}
+      PGRST_SERVER_PORT: 3000
+    networks:
+      - privada
+
+  supabase-studio:
+    image: supabase/studio:latest
+    container_name: meu-bolso-supabase-studio
+    restart: unless-stopped
+    profiles: ["supabase"]
+    env_file:
+      - .env
+    environment:
+      STUDIO_PG_META_URL: http://supabase-meta:8080
+      SUPABASE_URL: ${SUPABASE_URL}
+      SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY}
+    networks:
+      - privada
+
+  supabase-meta:
+    image: supabase/postgres-meta:latest
+    container_name: meu-bolso-supabase-meta
+    restart: unless-stopped
+    profiles: ["supabase"]
+    env_file:
+      - .env
+    environment:
+      PG_META_DB_HOST: postgres
+      PG_META_DB_PORT: ${POSTGRES_PORT}
+      PG_META_DB_NAME: ${POSTGRES_DB}
+      PG_META_DB_USER: ${POSTGRES_USER}
+      PG_META_DB_PASSWORD: ${POSTGRES_PASSWORD}
+    networks:
+      - privada

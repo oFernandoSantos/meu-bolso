@@ -84,21 +84,31 @@ function HomePage() {
       <div className="space-y-5">
         <MonthSelector month={month} onChange={setMonth} />
 
-        <SummaryCard
-          highlight
-          label={`Total gasto em ${monthName(month)}`}
-          amount={total}
-        />
+        <SummaryCard highlight label={`Total gasto em ${monthName(month)}`} amount={total} />
 
         <div className="grid grid-cols-2 gap-3">
-          <SummaryCard label="Crédito" amount={byMethod.credit} icon={<CreditCard className="size-3.5" />} />
-          <SummaryCard label="Débito" amount={byMethod.debit} icon={<Landmark className="size-3.5" />} />
-          <SummaryCard label="Pix" amount={byMethod.pix} icon={<Smartphone className="size-3.5" />} />
-          <SummaryCard label="Dinheiro" amount={byMethod.cash} icon={<Banknote className="size-3.5" />} />
+          <SummaryCard
+            label="Crédito"
+            amount={byMethod.credit}
+            icon={<CreditCard className="size-3.5" />}
+          />
+          <SummaryCard
+            label="Débito"
+            amount={byMethod.debit}
+            icon={<Landmark className="size-3.5" />}
+          />
+          <SummaryCard
+            label="Pix"
+            amount={byMethod.pix}
+            icon={<Smartphone className="size-3.5" />}
+          />
+          <SummaryCard
+            label="Dinheiro"
+            amount={byMethod.cash}
+            icon={<Banknote className="size-3.5" />}
+          />
         </div>
-        {byMethod.other > 0 ? (
-          <SummaryCard label="Outro" amount={byMethod.other} />
-        ) : null}
+        {byMethod.other > 0 ? <SummaryCard label="Outro" amount={byMethod.other} /> : null}
 
         {byCategory.length > 0 ? (
           <section className="card-soft p-4">
