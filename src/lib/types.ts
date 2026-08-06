@@ -69,11 +69,28 @@ export interface Installment {
   updated_at: string;
 }
 
+export interface MonthlyIncomeExtra {
+  id: string;
+  description: string;
+  amount: number;
+}
+
+export interface MonthlySavingsEntry {
+  id: string;
+  description: string;
+  amount: number;
+  created_at: string;
+  already_saved: boolean;
+  deduct_from_income: boolean;
+}
+
 export interface Settings {
   theme: ThemeMode;
   pluggy: PluggySettings;
   auth: AuthSettings;
   monthly_income_by_month: Record<string, number>;
+  monthly_income_extras_by_month: Record<string, MonthlyIncomeExtra[]>;
+  monthly_savings_by_month: Record<string, MonthlySavingsEntry[]>;
 }
 
 export interface Database {

@@ -59,6 +59,8 @@ import type {
   Database,
   EntryView,
   Expense,
+  MonthlyIncomeExtra,
+  MonthlySavingsEntry,
   PaymentMethod,
 } from "./src/lib/types";
 import { PAYMENT_LABELS, PAYMENT_METHODS, requiresCard } from "./src/lib/types";
@@ -67,6 +69,16 @@ import logoLogin from "./assets/logo-login.png";
 const STORAGE_KEY = "meu-bolso-db.json";
 const CARD_COLORS = ["#0f766e", "#2563eb", "#7c3aed", "#db2777", "#ea580c", "#334155"];
 const CATEGORY_COLORS = ["#f97316", "#16a34a", "#0ea5e9", "#8b5cf6", "#ef4444", "#eab308"];
+const CATEGORY_GRADIENT_COLORS = [
+  "#f97316",
+  "#facc15",
+  "#22c55e",
+  "#06b6d4",
+  "#3b82f6",
+  "#8b5cf6",
+  "#ec4899",
+  "#ef4444",
+];
 const BRAZILIAN_INSTITUTIONS = [
   "Banco do Brasil",
   "Caixa Economica Federal",
@@ -100,7 +112,7 @@ const SCREEN_WIDTH = Dimensions.get("window").width;
 const UI_SCALE = Math.min(Math.max(SCREEN_WIDTH / 390, 0.9), 1);
 const scale = (value: number) => Math.round(value * UI_SCALE);
 
-type TabKey = "home" | "expenses" | "cards" | "categories";
+type TabKey = "home" | "expenses" | "cards" | "categories" | "savings";
 
 type ExpenseDraft = {
   description: string;
@@ -128,6 +140,19 @@ type CardDraft = {
 type CategoryDraft = {
   name: string;
   color: string;
+};
+
+type IncomeExtraDraft = {
+  id: string;
+  description: string;
+  amountText: string;
+};
+
+type SavingsDraft = {
+  description: string;
+  amountText: string;
+  alreadySaved: boolean;
+  deductFromIncome: boolean;
 };
 
 type MainAppState = {
@@ -346,6 +371,49 @@ function maskCurrencyInput(value: string): string {
 function maskCardNumberInput(value: string): string {
   const digits = value.replace(/\D/g, "").slice(0, 19);
   return digits.replace(/(\d{4})(?=\d)/g, "$1 ").trim();
+}
+
+function formatCurrencyInputFromCents(value: number): string {
+  return value > 0 ? formatCurrency(value).replace("R$ ", "") : "";
+}
+
+function makeIncomeExtraDraft(extra?: MonthlyIncomeExtra): IncomeExtraDraft {
+  return {
+    id: extra?.id ?? createId(),
+    description: extra?.description ?? "",
+    amountText: extra ? formatCurrencyInputFromCents(extra.amount) : "",
+  };
+}
+
+function makeSavingsDraft(): SavingsDraft {
+  return {
+    description: "",
+    amountText: "",
+    alreadySaved: false,
+    deductFromIncome: false,
+  };
+}
+
+function formatHexColorInput(value: string): string {
+  const digits = value.replace(/[^0-9a-fA-F]/g, "").slice(0, 6).toUpperCase();
+  return digits ? `#${digits}` : "#";
+}
+
+function normalizeHexColor(value: string): string | null {
+  const digits = value.trim().replace(/^#/, "");
+  if (/^[0-9a-fA-F]{3}$/.test(digits)) {
+    return `#${digits
+      .split("")
+      .map((char) => `${char}${char}`)
+      .join("")
+      .toUpperCase()}`;
+  }
+
+  if (/^[0-9a-fA-F]{6}$/.test(digits)) {
+    return `#${digits.toUpperCase()}`;
+  }
+
+  return null;
 }
 
 function getCardNumberDigits(value: string): string {
@@ -644,9 +712,12 @@ function MainApp() {
   const [showCardModal, setShowCardModal] = useState(false);
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [showIncomeModal, setShowIncomeModal] = useState(false);
+  const [showSavingsModal, setShowSavingsModal] = useState(false);
   const [search, setSearch] = useState("");
   const [methodFilter, setMethodFilter] = useState<PaymentMethod | "all">("all");
-  const [incomeDraft, setIncomeDraft] = useState("");
+  const [incomeBaseDraft, setIncomeBaseDraft] = useState("");
+  const [incomeExtraDrafts, setIncomeExtraDrafts] = useState<IncomeExtraDraft[]>([]);
+  const [savingsDraft, setSavingsDraft] = useState<SavingsDraft>(makeSavingsDraft);
   const [expenseDraft, setExpenseDraft] = useState<ExpenseDraft>(() =>
     makeExpenseDraft(emptyDatabase().categories),
   );
@@ -746,7 +817,15 @@ function MainApp() {
 
   const totalMonth = sumEntries(monthEntries);
   const totals = totalsByPaymentMethod(monthEntries);
-  const monthlyIncome = state.db.settings.monthly_income_by_month[month] ?? 0;
+  const monthlyBaseIncome = state.db.settings.monthly_income_by_month[month] ?? 0;
+  const monthlyIncomeExtras = state.db.settings.monthly_income_extras_by_month[month] ?? [];
+  const monthlySavingsEntries = state.db.settings.monthly_savings_by_month[month] ?? [];
+  const monthlySavingsTotal = monthlySavingsEntries.reduce((sum, item) => sum + item.amount, 0);
+  const monthlySavingsFromIncome = monthlySavingsEntries.reduce(
+    (sum, item) => sum + (item.deduct_from_income ? item.amount : 0),
+    0,
+  );
+  const monthlyIncome = monthlyBaseIncome + monthlyIncomeExtras.reduce((sum, item) => sum + item.amount, 0);
   const theme = resolveTheme(state.db.settings.theme, systemTheme);
   const colors = theme === "dark" ? darkColors : lightColors;
   const pluggySettings = state.db.settings.pluggy;
@@ -755,7 +834,13 @@ function MainApp() {
   const authMode: AuthMode = hasAccess ? "login" : "register";
 
   const primaryActionLabel =
-    tab === "cards" ? "+ Novo cartao" : tab === "categories" ? "+ Nova categoria" : "+ Novo gasto";
+    tab === "cards"
+      ? "+ Novo cartao"
+      : tab === "categories"
+        ? "+ Nova categoria"
+        : tab === "savings"
+          ? "+ Guardar dinheiro"
+          : "+ Novo gasto";
 
   function updateDb(updater: (db: Database) => Database) {
     setState((current) => ({ ...current, db: updater(current.db) }));
@@ -1146,6 +1231,11 @@ function MainApp() {
       setShowCategoryModal(true);
       return;
     }
+    if (tab === "savings") {
+      setSavingsDraft(makeSavingsDraft());
+      setShowSavingsModal(true);
+      return;
+    }
 
     setExpenseDraft(makeExpenseDraft(state.db.categories));
     setShowExpenseModal(true);
@@ -1212,34 +1302,113 @@ function MainApp() {
       return;
     }
 
-    updateDb((db) => ({ ...db, categories: [...db.categories, makeCategory(categoryDraft)] }));
+    const normalizedColor = normalizeHexColor(categoryDraft.color);
+    if (!normalizedColor) {
+      notify("Dados invalidos", "Informe cor hex valida. Ex.: #22C55E.");
+      return;
+    }
+
+    updateDb((db) => ({
+      ...db,
+      categories: [...db.categories, makeCategory({ ...categoryDraft, color: normalizedColor })],
+    }));
     setCategoryDraft(makeCategoryDraft(state.db.categories));
     setShowCategoryModal(false);
   }
 
   function openIncomeModal() {
-    setIncomeDraft(monthlyIncome > 0 ? formatCurrency(monthlyIncome).replace("R$ ", "") : "");
+    setIncomeBaseDraft(formatCurrencyInputFromCents(monthlyBaseIncome));
+    setIncomeExtraDrafts(monthlyIncomeExtras.map((item) => makeIncomeExtraDraft(item)));
     setShowIncomeModal(true);
   }
 
   function saveMonthlyIncome() {
-    const parsed = Math.max(0, parseCurrencyToCents(incomeDraft) ?? 0);
+    const parsedBaseIncome = Math.max(0, parseCurrencyToCents(incomeBaseDraft) ?? 0);
+    const hasInvalidExtra = incomeExtraDrafts.some((item) => {
+      const description = item.description.trim();
+      const amount = parseCurrencyToCents(item.amountText) ?? 0;
+      return (description && amount <= 0) || (!description && amount > 0);
+    });
+
+    if (hasInvalidExtra) {
+      notify("Dados invalidos", "Cada renda extra precisa de descricao e valor.");
+      return;
+    }
+
+    const normalizedExtras = incomeExtraDrafts.flatMap((item) => {
+      const description = item.description.trim();
+      const amount = Math.max(0, parseCurrencyToCents(item.amountText) ?? 0);
+      if (!description || amount <= 0) return [];
+
+      return [
+        {
+          id: item.id,
+          description,
+          amount,
+        } satisfies MonthlyIncomeExtra,
+      ];
+    });
 
     updateDb((db) => ({
       ...db,
       settings: {
         ...db.settings,
         monthly_income_by_month:
-          parsed > 0
-            ? { ...db.settings.monthly_income_by_month, [month]: parsed }
+          parsedBaseIncome > 0
+            ? { ...db.settings.monthly_income_by_month, [month]: parsedBaseIncome }
             : Object.fromEntries(
                 Object.entries(db.settings.monthly_income_by_month).filter(
+                  ([entryMonth]) => entryMonth !== month,
+                ),
+              ),
+        monthly_income_extras_by_month:
+          normalizedExtras.length > 0
+            ? { ...db.settings.monthly_income_extras_by_month, [month]: normalizedExtras }
+            : Object.fromEntries(
+                Object.entries(db.settings.monthly_income_extras_by_month).filter(
                   ([entryMonth]) => entryMonth !== month,
                 ),
               ),
       },
     }));
     setShowIncomeModal(false);
+  }
+
+  function saveSavingsEntry() {
+    const description = savingsDraft.description.trim();
+    const amount = Math.max(0, parseCurrencyToCents(savingsDraft.amountText) ?? 0);
+
+    if (!description) {
+      notify("Dados invalidos", "Informe descricao para valor guardado.");
+      return;
+    }
+
+    if (amount <= 0) {
+      notify("Dados invalidos", "Informe valor valido para guardar.");
+      return;
+    }
+
+    const entry: MonthlySavingsEntry = {
+      id: createId(),
+      description,
+      amount,
+      created_at: new Date().toISOString(),
+      already_saved: savingsDraft.alreadySaved,
+      deduct_from_income: savingsDraft.deductFromIncome,
+    };
+
+    updateDb((db) => ({
+      ...db,
+      settings: {
+        ...db.settings,
+        monthly_savings_by_month: {
+          ...db.settings.monthly_savings_by_month,
+          [month]: [entry, ...(db.settings.monthly_savings_by_month[month] ?? [])],
+        },
+      },
+    }));
+    setSavingsDraft(makeSavingsDraft());
+    setShowSavingsModal(false);
   }
 
   return (
@@ -1290,6 +1459,7 @@ function MainApp() {
                     ["expenses", "Gastos", "$"],
                     ["cards", "Cartoes", "="],
                     ["categories", "Categorias", "⌗"],
+                    ["savings", "Guardar", "v"],
                   ] as const
                 ).map(([value, label]) => (
                   <TouchableOpacity
@@ -1342,6 +1512,12 @@ function MainApp() {
                             color={tab === value ? "#ffffff" : colors.textMuted}
                           />
                         ) : null}
+                        {value === "savings" ? (
+                          <Download
+                            size={tab === value ? 24 : 20}
+                            color={tab === value ? "#ffffff" : colors.textMuted}
+                          />
+                        ) : null}
                       </View>
                       {tab === value ? null : (
                         <Text
@@ -1374,6 +1550,7 @@ function MainApp() {
                   monthlyIncome={monthlyIncome}
                   totals={totals}
                   totalMonth={totalMonth}
+                  savedFromIncome={monthlySavingsFromIncome}
                   onIncomePress={openIncomeModal}
                   onDeleteExpense={(entry) =>
                     updateDb((db) => removeExpenseFromDb(db, entry.expense.id))
@@ -1412,6 +1589,36 @@ function MainApp() {
                   monthEntries={monthEntries}
                   onDeleteCategory={(category) =>
                     updateDb((db) => removeCategoryFromDb(db, category.id))
+                  }
+                />
+              ) : null}
+
+              {screen === "savings" ? (
+                <SavingsTab
+                  colors={colors}
+                  month={month}
+                  entries={monthlySavingsEntries}
+                  total={monthlySavingsTotal}
+                  onDeleteEntry={(entry) =>
+                    updateDb((db) => ({
+                      ...db,
+                      settings: {
+                        ...db.settings,
+                        monthly_savings_by_month: (() => {
+                          const nextEntries = (db.settings.monthly_savings_by_month[month] ?? []).filter(
+                            (item) => item.id !== entry.id,
+                          );
+
+                          return nextEntries.length > 0
+                            ? { ...db.settings.monthly_savings_by_month, [month]: nextEntries }
+                            : Object.fromEntries(
+                                Object.entries(db.settings.monthly_savings_by_month).filter(
+                                  ([entryMonth]) => entryMonth !== month,
+                                ),
+                              );
+                        })(),
+                      },
+                    }))
                   }
                 />
               ) : null}
@@ -1492,10 +1699,20 @@ function MainApp() {
           visible={showIncomeModal}
           colors={colors}
           month={month}
-          draft={incomeDraft}
-          onChange={setIncomeDraft}
+          baseDraft={incomeBaseDraft}
+          extraDrafts={incomeExtraDrafts}
+          onBaseChange={setIncomeBaseDraft}
+          onExtraDraftsChange={setIncomeExtraDrafts}
           onClose={() => setShowIncomeModal(false)}
           onSave={saveMonthlyIncome}
+        />
+        <SavingsModal
+          visible={showSavingsModal}
+          colors={colors}
+          draft={savingsDraft}
+          onChange={setSavingsDraft}
+          onClose={() => setShowSavingsModal(false)}
+          onSave={saveSavingsEntry}
         />
         {Platform.OS === "web" && pluggyComponent && pluggyConnectToken
           ? React.createElement(pluggyComponent, {
@@ -1564,6 +1781,7 @@ function Header({
     expenses: "Gastos",
     cards: "Cartoes",
     categories: "Categorias",
+    savings: "Guardar",
   };
 
   const subtitleMap: Record<TabKey, string> = {
@@ -1571,6 +1789,7 @@ function Header({
     expenses: `${entryCount} lancamentos - ${formatCurrency(total)}`,
     cards: "Limites e gastos do mes",
     categories: "Organize seus grupos",
+    savings: "Dinheiro guardado fora da renda",
   };
 
   return (
@@ -1662,6 +1881,7 @@ function HomeTab({
   monthlyIncome,
   totals,
   totalMonth,
+  savedFromIncome,
   onIncomePress,
   onDeleteExpense,
 }: {
@@ -1672,6 +1892,7 @@ function HomeTab({
   monthlyIncome: number;
   totals: Record<PaymentMethod, number>;
   totalMonth: number;
+  savedFromIncome: number;
   onIncomePress: () => void;
   onDeleteExpense: (entry: EntryView) => void;
 }) {
@@ -1710,7 +1931,8 @@ function HomeTab({
       <IncomeSummaryCard
         colors={colors}
         income={monthlyIncome}
-        spent={totalMonth}
+        spent={totalMonth + savedFromIncome}
+        savedFromIncome={savedFromIncome}
         month={month}
         onPress={onIncomePress}
       />
@@ -2273,6 +2495,73 @@ function CategoriesTab({
             </Text>
           </View>
           <TouchableOpacity onPress={() => onDeleteCategory(category)}>
+            <Text style={styles.deleteText}>Excluir</Text>
+          </TouchableOpacity>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+function SavingsTab({
+  colors,
+  month,
+  entries,
+  total,
+  onDeleteEntry,
+}: {
+  colors: typeof lightColors;
+  month: string;
+  entries: MonthlySavingsEntry[];
+  total: number;
+  onDeleteEntry: (entry: MonthlySavingsEntry) => void;
+}) {
+  return (
+    <View style={styles.sectionStack}>
+      <SectionTitle
+        colors={colors}
+        title="Dinheiro guardado"
+        subtitle={`Total em ${monthLabel(month).split(" de ")[0]?.toLowerCase() ?? month}`}
+      />
+      <View
+        style={[styles.savingsSummaryCard, { backgroundColor: colors.card, borderColor: colors.borderSoft }]}
+      >
+        <Text style={[styles.summaryTitle, { color: colors.textMuted }]}>Total guardado no mes</Text>
+        <Text style={[styles.savingsSummaryValue, { color: colors.textStrong }]}>
+          {formatCurrency(total)}
+        </Text>
+        <Text style={[styles.sectionSubtitle, { color: colors.textMuted }]}>
+          Esse valor fica separado e nao soma com a renda.
+        </Text>
+      </View>
+      {entries.length === 0 ? (
+        <EmptyCard
+          colors={colors}
+          icon={<Download size={30} color={colors.textMuted} />}
+          title="Nada guardado neste mes."
+          text="Toque no botao + para registrar um valor separado da renda."
+        />
+      ) : null}
+      {entries.map((entry) => (
+        <View
+          key={entry.id}
+          style={[styles.cardRow, { backgroundColor: colors.card, borderColor: colors.borderSoft }]}
+        >
+          <View style={styles.cardRowContent}>
+            <Text style={[styles.cardTitle, { color: colors.textStrong }]}>{entry.description}</Text>
+            <Text style={[styles.cardMeta, { color: colors.textMuted }]}>
+              {formatDateBR(entry.created_at.slice(0, 10)) + " - " + formatCurrency(entry.amount)}
+            </Text>
+            <View style={styles.chipWrap}>
+              {entry.already_saved ? (
+                <Chip colors={colors} label="Ja guardado" active={false} onPress={() => {}} />
+              ) : null}
+              {entry.deduct_from_income ? (
+                <Chip colors={colors} label="Retira da renda do mes" active onPress={() => {}} />
+              ) : null}
+            </View>
+          </View>
+          <TouchableOpacity onPress={() => onDeleteEntry(entry)}>
             <Text style={styles.deleteText}>Excluir</Text>
           </TouchableOpacity>
         </View>
@@ -2991,6 +3280,8 @@ function CategoryModal({
 }) {
   if (!visible) return null;
 
+  const selectedColor = normalizeHexColor(draft.color) ?? CATEGORY_COLORS[0] ?? "#16a34a";
+
   return (
     <Sheet title="Nova categoria" colors={colors} onClose={onClose}>
       <Field colors={colors} label="Nome">
@@ -3001,17 +3292,51 @@ function CategoryModal({
         />
       </Field>
       <Field colors={colors} label="Cor">
-        <View style={styles.chipWrap}>
-          {CATEGORY_COLORS.map((color) => (
-            <TouchableOpacity
-              key={color}
-              style={[
-                styles.colorDot,
-                { backgroundColor: color, borderColor: draft.color === color ? "#f8fafc" : color },
-              ]}
-              onPress={() => onChange((current) => ({ ...current, color }))}
-            />
-          ))}
+        <View style={styles.colorPickerStack}>
+          <View style={[styles.gradientPreview, { borderColor: colors.borderSoft }]}>
+            <View style={styles.gradientTrack}>
+              {CATEGORY_GRADIENT_COLORS.map((color) => (
+                <View key={color} style={[styles.gradientStop, { backgroundColor: color }]} />
+              ))}
+            </View>
+            <View style={styles.colorPreviewRow}>
+              <View style={[styles.colorPreviewDot, { backgroundColor: selectedColor }]} />
+              <Text style={[styles.colorPreviewText, { color: colors.textStrong }]}>{selectedColor}</Text>
+            </View>
+          </View>
+          <View style={styles.chipWrap}>
+            {CATEGORY_COLORS.map((color) => (
+              <TouchableOpacity
+                key={color}
+                style={[
+                  styles.colorDot,
+                  {
+                    backgroundColor: color,
+                    borderColor: selectedColor === color ? "#f8fafc" : color,
+                  },
+                ]}
+                onPress={() => onChange((current) => ({ ...current, color }))}
+              />
+            ))}
+          </View>
+          <TextInput
+            style={[styles.input, modalInputStyle(colors)]}
+            value={draft.color}
+            placeholder="#22C55E"
+            placeholderTextColor={colors.textMuted}
+            autoCapitalize="characters"
+            autoCorrect={false}
+            maxLength={7}
+            onChangeText={(value) =>
+              onChange((current) => ({
+                ...current,
+                color: formatHexColorInput(value),
+              }))
+            }
+          />
+          <Text style={[styles.fieldHint, { color: colors.textMuted }]}>
+            Digite qualquer cor em HEX. Ex.: #FF914D
+          </Text>
         </View>
       </Field>
       <ModalActions
@@ -3028,6 +3353,131 @@ function IncomeModal({
   visible,
   colors,
   month,
+  baseDraft,
+  extraDrafts,
+  onBaseChange,
+  onExtraDraftsChange,
+  onClose,
+  onSave,
+}: {
+  visible: boolean;
+  colors: typeof lightColors;
+  month: string;
+  baseDraft: string;
+  extraDrafts: IncomeExtraDraft[];
+  onBaseChange: React.Dispatch<React.SetStateAction<string>>;
+  onExtraDraftsChange: React.Dispatch<React.SetStateAction<IncomeExtraDraft[]>>;
+  onClose: () => void;
+  onSave: () => void;
+}) {
+  if (!visible) return null;
+
+  const baseIncome = Math.max(0, parseCurrencyToCents(baseDraft) ?? 0);
+  const extrasTotal = extraDrafts.reduce(
+    (sum, item) => sum + Math.max(0, parseCurrencyToCents(item.amountText) ?? 0),
+    0,
+  );
+  const totalIncome = baseIncome + extrasTotal;
+
+  return (
+    <Sheet title="Renda" colors={colors} onClose={onClose}>
+      <Field colors={colors} label="Renda base (R$)">
+        <TextInput
+          style={[styles.input, modalInputStyle(colors)]}
+          keyboardType="numeric"
+          placeholder="0,00"
+          placeholderTextColor={colors.textMuted}
+          value={baseDraft}
+          onChangeText={(value) => onBaseChange(maskCurrencyInput(value))}
+        />
+      </Field>
+      <View style={styles.incomeExtrasHeader}>
+        <Text style={[styles.fieldLabel, { color: colors.textStrong }]}>Rendas extras</Text>
+        <TouchableOpacity
+          style={[styles.chip, { backgroundColor: colors.card, borderColor: colors.borderSoft }]}
+          onPress={() =>
+            onExtraDraftsChange((current) => [...current, makeIncomeExtraDraft()])
+          }
+        >
+          <Text style={[styles.chipText, { color: colors.textStrong }]}>+ Adicionar renda extra</Text>
+        </TouchableOpacity>
+      </View>
+      <View style={styles.incomeExtraList}>
+        {extraDrafts.length === 0 ? (
+          <Text style={[styles.sectionSubtitle, { color: colors.textMuted }]}>
+            Use extras para bonus, freela, comissao ou qualquer entrada complementar.
+          </Text>
+        ) : null}
+        {extraDrafts.map((item, index) => (
+          <View
+            key={item.id}
+            style={[
+              styles.incomeExtraCard,
+              { backgroundColor: colors.card, borderColor: colors.borderSoft },
+            ]}
+          >
+            <View style={styles.incomeExtraCardHeader}>
+              <Text style={[styles.incomeExtraTitle, { color: colors.textStrong }]}>
+                Renda extra {index + 1}
+              </Text>
+              <TouchableOpacity
+                style={[styles.incomeExtraRemoveButton, { borderColor: colors.borderSoft }]}
+                onPress={() =>
+                  onExtraDraftsChange((current) => current.filter((entry) => entry.id !== item.id))
+                }
+              >
+                <Trash2 size={16} color="#ef4444" />
+              </TouchableOpacity>
+            </View>
+            <TextInput
+              style={[styles.input, modalInputStyle(colors)]}
+              placeholder="Descricao"
+              placeholderTextColor={colors.textMuted}
+              value={item.description}
+              onChangeText={(value) =>
+                onExtraDraftsChange((current) =>
+                  current.map((entry) =>
+                    entry.id === item.id ? { ...entry, description: value } : entry,
+                  ),
+                )
+              }
+            />
+            <TextInput
+              style={[styles.input, modalInputStyle(colors)]}
+              keyboardType="numeric"
+              placeholder="0,00"
+              placeholderTextColor={colors.textMuted}
+              value={item.amountText}
+              onChangeText={(value) =>
+                onExtraDraftsChange((current) =>
+                  current.map((entry) =>
+                    entry.id === item.id ? { ...entry, amountText: maskCurrencyInput(value) } : entry,
+                  ),
+                )
+              }
+            />
+          </View>
+        ))}
+      </View>
+      <View style={[styles.incomeTotalCard, { backgroundColor: colors.card, borderColor: colors.borderSoft }]}>
+        <Text style={[styles.sectionSubtitle, { color: colors.textMuted }]}>
+          Total de renda em {monthLabel(month).split(" de ")[0]?.toLowerCase() ?? month}
+        </Text>
+        <Text style={[styles.incomeTotalValue, { color: colors.textStrong }]}>
+          {formatCurrency(totalIncome)}
+        </Text>
+      </View>
+      <Text style={[styles.sectionSubtitle, { color: colors.textMuted }]}>
+        Renda base e extras entram juntas no comparativo com todos os gastos do mes.
+      </Text>
+      <ModalActions colors={colors} onClose={onClose} onSave={onSave} saveLabel="Salvar renda" />
+    </Sheet>
+  );
+}
+
+function SavingsModal({
+  visible,
+  colors,
   draft,
   onChange,
   onClose,
@@ -3035,30 +3485,68 @@ function IncomeModal({
 }: {
   visible: boolean;
   colors: typeof lightColors;
-  month: string;
-  draft: string;
-  onChange: React.Dispatch<React.SetStateAction<string>>;
+  draft: SavingsDraft;
+  onChange: React.Dispatch<React.SetStateAction<SavingsDraft>>;
   onClose: () => void;
   onSave: () => void;
 }) {
   if (!visible) return null;
 
   return (
-    <Sheet title={`Renda de ${monthLabel(month)}`} colors={colors} onClose={onClose}>
-      <Field colors={colors} label="Valor da renda (R$)">
+    <Sheet title="Guardar dinheiro" colors={colors} onClose={onClose}>
+      <Field colors={colors} label="Descricao">
+        <TextInput
+          style={[styles.input, modalInputStyle(colors)]}
+          placeholder="Ex.: Reserva, viagem, emergencia"
+          placeholderTextColor={colors.textMuted}
+          value={draft.description}
+          onChangeText={(value) => onChange((current) => ({ ...current, description: value }))}
+        />
+      </Field>
+      <Field colors={colors} label="Valor (R$)">
         <TextInput
           style={[styles.input, modalInputStyle(colors)]}
           keyboardType="numeric"
           placeholder="0,00"
           placeholderTextColor={colors.textMuted}
-          value={draft}
-          onChangeText={(value) => onChange(maskCurrencyInput(value))}
+          value={draft.amountText}
+          onChangeText={(value) =>
+            onChange((current) => ({ ...current, amountText: maskCurrencyInput(value) }))
+          }
         />
       </Field>
+      <Field colors={colors} label="Como tratar esse valor">
+        <View style={styles.chipWrap}>
+          <Chip
+            colors={colors}
+            label="Ja guardado"
+            active={draft.alreadySaved}
+            onPress={() =>
+              onChange((current) => ({
+                ...current,
+                alreadySaved: !current.alreadySaved,
+                deductFromIncome: !current.alreadySaved ? false : current.deductFromIncome,
+              }))
+            }
+          />
+          <Chip
+            colors={colors}
+            label="Retirar da renda mes"
+            active={draft.deductFromIncome}
+            onPress={() =>
+              onChange((current) => ({
+                ...current,
+                deductFromIncome: !current.deductFromIncome,
+                alreadySaved: !current.deductFromIncome ? false : current.alreadySaved,
+              }))
+            }
+          />
+        </View>
+      </Field>
       <Text style={[styles.sectionSubtitle, { color: colors.textMuted }]}>
-        Esse valor entra no comparativo da renda do mes com todos os gastos desta tela.
+        Ja guardado = valor que voce ja tinha. Retirar da renda mes = abate do saldo livre do mes.
       </Text>
-      <ModalActions colors={colors} onClose={onClose} onSave={onSave} saveLabel="Salvar renda" />
+      <ModalActions colors={colors} onClose={onClose} onSave={onSave} saveLabel="Salvar valor" />
     </Sheet>
   );
 }
@@ -3500,12 +3988,14 @@ function IncomeSummaryCard({
   colors,
   income,
   spent,
+  savedFromIncome,
   month,
   onPress,
 }: {
   colors: typeof lightColors;
   income: number;
   spent: number;
+  savedFromIncome: number;
   month: string;
   onPress: () => void;
 }) {
@@ -3544,7 +4034,9 @@ function IncomeSummaryCard({
       </View>
       <View style={styles.incomeCardStats}>
         <View style={styles.incomeStatBlock}>
-          <Text style={[styles.incomeStatLabel, { color: colors.textMuted }]}>Gastos</Text>
+          <Text style={[styles.incomeStatLabel, { color: colors.textMuted }]}>
+            {savedFromIncome > 0 ? "Gastos + guardado" : "Gastos"}
+          </Text>
           <Text style={[styles.incomeStatValue, { color: colors.textStrong }]}>
             {formatCurrency(spent)}
           </Text>
@@ -3585,7 +4077,9 @@ function IncomeSummaryCard({
       </View>
       <Text style={[styles.incomeCardMeta, { color: colors.textMuted }]}>
         {isConfigured
-          ? `${Math.round(usagePercent)}% da renda de ${monthLabel(month).split(" de ")[0]?.toLowerCase() ?? month} foi usada`
+          ? savedFromIncome > 0
+            ? `${formatCurrency(savedFromIncome)} foi retirado da renda de ${monthLabel(month).split(" de ")[0]?.toLowerCase() ?? month}`
+            : `${Math.round(usagePercent)}% da renda de ${monthLabel(month).split(" de ")[0]?.toLowerCase() ?? month} foi usada`
           : "Toque aqui para definir a renda deste mes e comparar com todos os gastos"}
       </Text>
     </TouchableOpacity>
@@ -4047,6 +4541,48 @@ const styles = StyleSheet.create({
     lineHeight: scale(15),
     marginTop: scale(1),
   },
+  incomeExtrasHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: scale(10),
+  },
+  incomeExtraList: { gap: scale(10) },
+  incomeExtraCard: {
+    borderWidth: 1,
+    borderRadius: scale(18),
+    padding: scale(12),
+    gap: scale(10),
+  },
+  incomeExtraCardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: scale(10),
+  },
+  incomeExtraTitle: { fontSize: scale(13), fontWeight: "700" },
+  incomeExtraRemoveButton: {
+    width: scale(34),
+    height: scale(34),
+    borderRadius: 999,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  incomeTotalCard: {
+    borderWidth: 1,
+    borderRadius: scale(18),
+    padding: scale(14),
+    gap: scale(6),
+  },
+  incomeTotalValue: { fontSize: scale(18), lineHeight: scale(22), fontWeight: "800" },
+  savingsSummaryCard: {
+    borderWidth: 1,
+    borderRadius: scale(18),
+    padding: scale(16),
+    gap: scale(8),
+  },
+  savingsSummaryValue: { fontSize: scale(22), lineHeight: scale(26), fontWeight: "800" },
   summaryBox: {
     backgroundColor: "#ffffff",
     borderWidth: 1,
@@ -4229,6 +4765,30 @@ const styles = StyleSheet.create({
   },
   dangerButtonText: { color: "#fecdd3", fontWeight: "700", fontSize: scale(14) },
   chipWrap: { flexDirection: "row", flexWrap: "wrap", gap: scale(8) },
+  colorPickerStack: { gap: scale(10) },
+  gradientPreview: {
+    borderWidth: 1,
+    borderRadius: scale(18),
+    padding: scale(10),
+    gap: scale(10),
+    backgroundColor: "rgba(255,255,255,0.03)",
+  },
+  gradientTrack: {
+    flexDirection: "row",
+    overflow: "hidden",
+    borderRadius: 999,
+    height: scale(18),
+  },
+  gradientStop: { flex: 1 },
+  colorPreviewRow: { flexDirection: "row", alignItems: "center", gap: scale(10) },
+  colorPreviewDot: {
+    width: scale(26),
+    height: scale(26),
+    borderRadius: 999,
+    borderWidth: 2,
+    borderColor: "#ffffff",
+  },
+  colorPreviewText: { fontSize: scale(13), fontWeight: "700", letterSpacing: 0.4 },
   chip: {
     paddingVertical: scale(9),
     paddingHorizontal: scale(13),

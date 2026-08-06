@@ -1,4 +1,13 @@
-import type { Card, Category, Database, Expense, Installment, Settings } from "./types";
+import type {
+  Card,
+  Category,
+  Database,
+  Expense,
+  Installment,
+  MonthlyIncomeExtra,
+  MonthlySavingsEntry,
+  Settings,
+} from "./types";
 
 export const STORAGE_KEY = "gastos.db.v1";
 
@@ -70,6 +79,8 @@ export function emptyDatabase(): Database {
         session_active: false,
       },
       monthly_income_by_month: {},
+      monthly_income_extras_by_month: {},
+      monthly_savings_by_month: {},
     },
   };
 }
@@ -105,6 +116,78 @@ function asRecordOfNumbers(value: unknown): Record<string, number> {
     if (typeof item === "number" && Number.isFinite(item)) {
       acc[key] = item;
     }
+    return acc;
+  }, {});
+}
+
+function asMonthlyIncomeExtra(value: unknown): MonthlyIncomeExtra | null {
+  if (!isObject(value)) return null;
+
+  const id = asString(value["id"]);
+  const description = asString(value["description"]).trim();
+  const amount = asNumber(value["amount"], -1);
+  if (!id || !description || amount < 0) return null;
+
+  return {
+    id,
+    description,
+    amount,
+  };
+}
+
+function asRecordOfIncomeExtras(value: unknown): Record<string, MonthlyIncomeExtra[]> {
+  if (!isObject(value)) return {};
+
+  return Object.entries(value).reduce<Record<string, MonthlyIncomeExtra[]>>((acc, [key, item]) => {
+    if (!Array.isArray(item)) return acc;
+
+    const extras = item.flatMap((entry) => {
+      const normalized = asMonthlyIncomeExtra(entry);
+      return normalized ? [normalized] : [];
+    });
+
+    if (extras.length > 0) {
+      acc[key] = extras;
+    }
+
+    return acc;
+  }, {});
+}
+
+function asMonthlySavingsEntry(value: unknown): MonthlySavingsEntry | null {
+  if (!isObject(value)) return null;
+
+  const id = asString(value["id"]);
+  const description = asString(value["description"]).trim();
+  const amount = asNumber(value["amount"], -1);
+  const created_at = asString(value["created_at"], SEED_TIMESTAMP);
+  if (!id || !description || amount < 0) return null;
+
+  return {
+    id,
+    description,
+    amount,
+    created_at,
+    already_saved: asBoolean(value["already_saved"], false),
+    deduct_from_income: asBoolean(value["deduct_from_income"], false),
+  };
+}
+
+function asRecordOfSavingsEntries(value: unknown): Record<string, MonthlySavingsEntry[]> {
+  if (!isObject(value)) return {};
+
+  return Object.entries(value).reduce<Record<string, MonthlySavingsEntry[]>>((acc, [key, item]) => {
+    if (!Array.isArray(item)) return acc;
+
+    const entries = item.flatMap((entry) => {
+      const normalized = asMonthlySavingsEntry(entry);
+      return normalized ? [normalized] : [];
+    });
+
+    if (entries.length > 0) {
+      acc[key] = entries;
+    }
+
     return acc;
   }, {});
 }
@@ -260,6 +343,12 @@ export function normalizeDatabase(input: unknown): Database {
             }
           : base.settings.auth,
         monthly_income_by_month: asRecordOfNumbers(input["settings"]["monthly_income_by_month"]),
+        monthly_income_extras_by_month: asRecordOfIncomeExtras(
+          input["settings"]["monthly_income_extras_by_month"],
+        ),
+        monthly_savings_by_month: asRecordOfSavingsEntries(
+          input["settings"]["monthly_savings_by_month"],
+        ),
       }
     : base.settings;
 
