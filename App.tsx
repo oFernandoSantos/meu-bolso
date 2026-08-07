@@ -1416,15 +1416,14 @@ function MainApp() {
     typeof navigator !== "undefined" &&
     /iPad|iPhone|iPod/.test(navigator.userAgent);
   const iosPwaTabRowStyle = isIOSPwaWeb
-    ? {
-        bottom: 0,
-        paddingBottom: `calc(${scale(8)}px + env(safe-area-inset-bottom))`,
-      }
+    ? ({
+        paddingBottom: "env(safe-area-inset-bottom)",
+      } as React.CSSProperties)
     : null;
   const iosPwaFabStyle = isIOSPwaWeb
-    ? {
+    ? ({
         bottom: `calc(${scale(82)}px + env(safe-area-inset-bottom))`,
-      }
+      } as React.CSSProperties)
     : null;
 
   return (
@@ -1467,9 +1466,13 @@ function MainApp() {
 
             {screen !== "config" ? (
               <View
-                style={[styles.tabRow, { backgroundColor: colors.card, borderTopColor: colors.borderSoft }]}
+                style={[
+                  styles.tabRow,
+                  iosPwaTabRowStyle,
+                  { backgroundColor: colors.card, borderTopColor: colors.borderSoft },
+                ]}
               >
-                <View style={[styles.tabRowInner, iosPwaTabRowStyle]}>
+                <View style={styles.tabRowInner}>
                   {(
                   [
                     ["home", "Inicio", "⌂"],
@@ -1551,14 +1554,6 @@ function MainApp() {
                   </TouchableOpacity>
                 ))}
                 </View>
-                {isIOSPwaWeb ? (
-                  <div
-                    style={{
-                      height: "env(safe-area-inset-bottom)",
-                      background: colors.card,
-                    }}
-                  />
-                ) : null}
               </View>
             ) : null}
 
