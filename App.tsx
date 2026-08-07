@@ -1415,19 +1415,27 @@ function MainApp() {
     Platform.OS === "web" &&
     typeof navigator !== "undefined" &&
     /iPad|iPhone|iPod/.test(navigator.userAgent);
+  const iosSafeBottom = "env(safe-area-inset-bottom)";
   const iosPwaTabRowStyle = isIOSPwaWeb
     ? ({
-        bottom: 0,
+        bottom: `calc(${iosSafeBottom} * -1)`,
       } as React.CSSProperties)
     : null;
   const iosPwaTabRowInnerStyle = isIOSPwaWeb
     ? ({
-        paddingBottom: scale(10),
+        minHeight: scale(70),
+        paddingBottom: `calc(${scale(8)}px + ${iosSafeBottom})`,
+        paddingTop: scale(4),
+      } as React.CSSProperties)
+    : null;
+  const iosPwaScrollContentStyle = isIOSPwaWeb
+    ? ({
+        paddingBottom: `calc(${scale(126)}px + ${iosSafeBottom})`,
       } as React.CSSProperties)
     : null;
   const iosPwaFabStyle = isIOSPwaWeb
     ? ({
-        bottom: `calc(${scale(82)}px + env(safe-area-inset-bottom))`,
+        bottom: `calc(${scale(82)}px + ${iosSafeBottom})`,
       } as React.CSSProperties)
     : null;
 
@@ -1563,7 +1571,7 @@ function MainApp() {
             ) : null}
 
             <ScrollView
-              contentContainerStyle={styles.scrollContent}
+              contentContainerStyle={[styles.scrollContent, iosPwaScrollContentStyle]}
               showsVerticalScrollIndicator={false}
               showsHorizontalScrollIndicator={false}
             >
