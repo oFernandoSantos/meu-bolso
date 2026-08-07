@@ -1417,7 +1417,7 @@ function MainApp() {
     /iPad|iPhone|iPod/.test(navigator.userAgent);
   const iosPwaTabRowStyle = isIOSPwaWeb
     ? ({
-        paddingBottom: "env(safe-area-inset-bottom)",
+        paddingBottom: 0,
       } as React.CSSProperties)
     : null;
   const iosPwaFabStyle = isIOSPwaWeb
@@ -4356,7 +4356,7 @@ const styles = StyleSheet.create({
     gap: scale(2),
     paddingHorizontal: scale(10),
     paddingTop: scale(2),
-    paddingBottom: scale(5),
+    paddingBottom: scale(2),
   },
   tabItem: { flex: 1, alignItems: "center", justifyContent: "flex-end", minHeight: scale(48) },
   tabPill: {
