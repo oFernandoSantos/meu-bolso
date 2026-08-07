@@ -1416,6 +1416,16 @@ function MainApp() {
     typeof navigator !== "undefined" &&
     /iPad|iPhone|iPod/.test(navigator.userAgent);
   const iosSafeBottom = "env(safe-area-inset-bottom)";
+  const iosSafeTop = "env(safe-area-inset-top)";
+  const RootShell = isIOSPwaWeb ? View : SafeAreaView;
+  const iosPwaRootStyle = isIOSPwaWeb
+    ? ({
+        paddingTop: iosSafeTop,
+        paddingBottom: 0,
+        paddingLeft: "env(safe-area-inset-left)",
+        paddingRight: "env(safe-area-inset-right)",
+      } as React.CSSProperties)
+    : null;
   const iosPwaTabRowStyle = isIOSPwaWeb
     ? ({
         bottom: `calc(${iosSafeBottom} * -1)`,
@@ -1440,7 +1450,7 @@ function MainApp() {
     : null;
 
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
+    <RootShell style={[styles.safeArea, { backgroundColor: colors.background }, iosPwaRootStyle]}>
       <StatusBar
         barStyle={theme === "dark" ? "light-content" : "dark-content"}
         backgroundColor={theme === "dark" ? "#050505" : colors.background}
@@ -1789,7 +1799,7 @@ function MainApp() {
             })
           : null}
       </View>
-    </SafeAreaView>
+    </RootShell>
   );
 }
 
