@@ -1428,13 +1428,14 @@ function MainApp() {
     : null;
   const iosPwaTabRowStyle = isIOSPwaWeb
     ? ({
-        bottom: `calc(${iosSafeBottom} * -1)`,
+        bottom: 0,
+        paddingBottom: iosSafeBottom,
       } as React.CSSProperties)
     : null;
   const iosPwaTabRowInnerStyle = isIOSPwaWeb
     ? ({
-        minHeight: scale(70),
-        paddingBottom: `calc(${scale(8)}px + ${iosSafeBottom})`,
+        minHeight: scale(62),
+        paddingBottom: scale(8),
         paddingTop: scale(4),
       } as React.CSSProperties)
     : null;

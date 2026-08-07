@@ -77,7 +77,6 @@ self.addEventListener("fetch", (event) => {
 `;
 
 const headTags = `
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <meta name="theme-color" content="#050505" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -112,9 +111,14 @@ await writeFile(manifestPath, JSON.stringify(manifest, null, 2));
 await writeFile(serviceWorkerPath, serviceWorker);
 
 const indexHtml = await readFile(indexHtmlPath, "utf8");
-const withManifest = indexHtml.includes('rel="manifest"')
-  ? indexHtml
-  : indexHtml.replace("</head>", `${headTags}</head>`);
+const withViewportFit = indexHtml.replace(
+  /<meta\s+name="viewport"\s+content="[^"]*"\s*\/?>/i,
+  '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />',
+);
+
+const withManifest = withViewportFit.includes('rel="manifest"')
+  ? withViewportFit
+  : withViewportFit.replace("</head>", `${headTags}</head>`);
 const withServiceWorker = withManifest.includes('navigator.serviceWorker.register("/sw.js")')
   ? withManifest
   : withManifest.replace("</body>", `${registerScript}</body>`);
