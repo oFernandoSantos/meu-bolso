@@ -8,6 +8,7 @@ RUN npm install
 COPY . .
 
 RUN npx expo export --platform web
+RUN node scripts/prepare-pwa.mjs
 
 FROM nginx:1.27-alpine AS runtime
 
