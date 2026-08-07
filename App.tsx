@@ -1420,10 +1420,23 @@ function MainApp() {
   const RootShell = isIOSPwaWeb ? View : SafeAreaView;
   const iosPwaRootStyle = isIOSPwaWeb
     ? ({
+        position: "fixed",
+        top: 0,
+        right: 0,
+        bottom: 0,
+        left: 0,
         paddingTop: iosSafeTop,
         paddingBottom: 0,
         paddingLeft: "env(safe-area-inset-left)",
         paddingRight: "env(safe-area-inset-right)",
+        overflow: "hidden",
+      } as React.CSSProperties)
+    : null;
+  const iosPwaContainerStyle = isIOSPwaWeb
+    ? ({
+        height: "100%",
+        minHeight: "100%",
+        overflow: "hidden",
       } as React.CSSProperties)
     : null;
   const iosPwaTabRowStyle = isIOSPwaWeb
@@ -1456,7 +1469,7 @@ function MainApp() {
         barStyle={theme === "dark" ? "light-content" : "dark-content"}
         backgroundColor={theme === "dark" ? "#050505" : colors.background}
       />
-      <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={[styles.container, { backgroundColor: colors.background }, iosPwaContainerStyle]}>
         {!state.hydrated ? (
           <View style={styles.centered}>
             <Text style={styles.loadingText}>Carregando dados...</Text>
@@ -4292,10 +4305,12 @@ function Chip({
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: "#f6f4ea" },
+  safeArea: { flex: 1, width: "100%", height: "100%", minHeight: "100%", backgroundColor: "#f6f4ea" },
   container: {
     flex: 1,
     width: "100%",
+    height: "100%",
+    minHeight: "100%",
     maxWidth: 480,
     alignSelf: "center",
     backgroundColor: "#f6f4ea",
