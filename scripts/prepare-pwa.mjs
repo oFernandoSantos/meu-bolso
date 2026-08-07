@@ -96,8 +96,8 @@ const headTags = `
         left: 0;
         right: 0;
         bottom: 0;
-        height: calc(env(safe-area-inset-bottom) + 32px);
-        background: #101010;
+        height: env(safe-area-inset-bottom);
+        background: #ffffff;
         pointer-events: none;
         z-index: 999999;
       }
