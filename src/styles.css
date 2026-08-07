@@ -137,15 +137,24 @@
 }
 
 @layer base {
+  html,
+  body,
+  #root {
+    min-height: 100svh;
+    min-height: 100dvh;
+  }
+
   * {
     border-color: var(--color-border);
   }
 
   body {
+    margin: 0;
     background-color: var(--color-background);
     color: var(--color-foreground);
     font-family: var(--font-sans);
     -webkit-tap-highlight-color: transparent;
+    overflow-x: hidden;
   }
 
   h1,
@@ -158,9 +167,12 @@
 }
 
 @utility app-shell {
+  display: flex;
+  flex-direction: column;
   margin-inline: auto;
   width: 100%;
   max-width: 30rem;
+  min-height: 100svh;
   min-height: 100dvh;
   background-color: var(--color-background);
 }
