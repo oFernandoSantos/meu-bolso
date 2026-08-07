@@ -1411,9 +1411,14 @@ function MainApp() {
     setShowSavingsModal(false);
   }
 
+  const isIOS = Platform.OS === "ios";
+
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle={theme === "dark" ? "light-content" : "dark-content"} />
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
+      <StatusBar
+        barStyle={theme === "dark" ? "light-content" : "dark-content"}
+        backgroundColor={theme === "dark" ? "#050505" : colors.background}
+      />
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         {!state.hydrated ? (
           <View style={styles.centered}>
@@ -1450,6 +1455,12 @@ function MainApp() {
               <View
                 style={[
                   styles.tabRow,
+                  isIOS
+                    ? {
+                        bottom: scale(10),
+                        paddingBottom: scale(10),
+                      }
+                    : null,
                   { backgroundColor: colors.card, borderTopColor: colors.borderSoft },
                 ]}
               >
@@ -1660,7 +1671,11 @@ function MainApp() {
 
             {screen !== "config" ? (
               <TouchableOpacity
-                style={[styles.floatingAction, { backgroundColor: colors.floatingBg }]}
+                style={[
+                  styles.floatingAction,
+                  isIOS ? { bottom: scale(94) } : null,
+                  { backgroundColor: colors.floatingBg },
+                ]}
                 onPress={handlePrimaryAction}
               >
                 <Plus size={24} color={colors.floatingText} />
