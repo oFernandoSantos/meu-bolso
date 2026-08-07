@@ -109,7 +109,9 @@ export function AppShell({
           </div>
         </div>
       </header>
-      <main className="flex-1 px-5 py-5 pb-[calc(7rem+env(safe-area-inset-bottom))]">{children}</main>
+      <main className="flex-1 overflow-y-auto px-5 py-5 pb-[calc(7rem+env(safe-area-inset-bottom))]">
+        {children}
+      </main>
       {withTabs ? <TabBar /> : null}
     </div>
   );
