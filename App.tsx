@@ -1417,7 +1417,12 @@ function MainApp() {
     /iPad|iPhone|iPod/.test(navigator.userAgent);
   const iosPwaTabRowStyle = isIOSPwaWeb
     ? ({
-        paddingBottom: "env(safe-area-inset-bottom)",
+        bottom: 0,
+      } as React.CSSProperties)
+    : null;
+  const iosPwaTabRowInnerStyle = isIOSPwaWeb
+    ? ({
+        paddingBottom: scale(10),
       } as React.CSSProperties)
     : null;
   const iosPwaFabStyle = isIOSPwaWeb
@@ -1472,7 +1477,7 @@ function MainApp() {
                   { backgroundColor: colors.card, borderTopColor: colors.borderSoft },
                 ]}
               >
-                <View style={styles.tabRowInner}>
+                <View style={[styles.tabRowInner, iosPwaTabRowInnerStyle]}>
                   {(
                   [
                     ["home", "Inicio", "⌂"],

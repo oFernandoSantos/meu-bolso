@@ -89,6 +89,18 @@ const headTags = `
       #root {
         background: #050505;
       }
+
+      body::after {
+        content: "";
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        height: calc(env(safe-area-inset-bottom) + 18px);
+        background: #101010;
+        pointer-events: none;
+        z-index: 999999;
+      }
     </style>
 `;
 
