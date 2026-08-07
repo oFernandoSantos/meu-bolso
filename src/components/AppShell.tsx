@@ -82,7 +82,7 @@ export function AppShell({
   ) : null;
 
   return (
-    <div className="app-shell relative pb-[calc(7rem+env(safe-area-inset-bottom))]">
+    <div className="app-shell relative">
       <header className="sticky top-0 z-30 border-b border-border/70 bg-background/90 px-5 py-3 backdrop-blur">
         <div className="grid grid-cols-[2.25rem_minmax(0,1fr)_2.25rem] items-center gap-3">
           <div className="flex h-9 items-center justify-center">
@@ -109,7 +109,7 @@ export function AppShell({
           </div>
         </div>
       </header>
-      <main className="flex-1 px-5 py-5">{children}</main>
+      <main className="flex-1 px-5 py-5 pb-[calc(7rem+env(safe-area-inset-bottom))]">{children}</main>
       {withTabs ? <TabBar /> : null}
     </div>
   );
