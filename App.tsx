@@ -1411,7 +1411,11 @@ function MainApp() {
     setShowSavingsModal(false);
   }
 
-  const isIOS = Platform.OS === "ios";
+  const isIOSPwaWeb =
+    Platform.OS === "web" &&
+    typeof navigator !== "undefined" &&
+    /iPad|iPhone|iPod/.test(navigator.userAgent);
+  const bottomSafeOffset = isIOSPwaWeb ? scale(22) : 0;
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
@@ -1455,10 +1459,10 @@ function MainApp() {
               <View
                 style={[
                   styles.tabRow,
-                  isIOS
+                  isIOSPwaWeb
                     ? {
-                        bottom: scale(10),
-                        paddingBottom: scale(10),
+                        bottom: scale(10) + bottomSafeOffset,
+                        paddingBottom: scale(10) + bottomSafeOffset,
                       }
                     : null,
                   { backgroundColor: colors.card, borderTopColor: colors.borderSoft },
@@ -1673,7 +1677,7 @@ function MainApp() {
               <TouchableOpacity
                 style={[
                   styles.floatingAction,
-                  isIOS ? { bottom: scale(94) } : null,
+                  isIOSPwaWeb ? { bottom: scale(94) + bottomSafeOffset } : null,
                   { backgroundColor: colors.floatingBg },
                 ]}
                 onPress={handlePrimaryAction}
