@@ -1461,8 +1461,8 @@ function MainApp() {
                   styles.tabRow,
                   isIOSPwaWeb
                     ? {
-                        bottom: scale(10) + bottomSafeOffset,
-                        paddingBottom: scale(10) + bottomSafeOffset,
+                        bottom: 0,
+                        paddingBottom: scale(8) + bottomSafeOffset,
                       }
                     : null,
                   { backgroundColor: colors.card, borderTopColor: colors.borderSoft },
