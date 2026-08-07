@@ -1417,7 +1417,7 @@ function MainApp() {
     /iPad|iPhone|iPod/.test(navigator.userAgent);
   const iosPwaTabRowStyle = isIOSPwaWeb
     ? ({
-        paddingBottom: 0,
+        paddingBottom: "env(safe-area-inset-bottom)",
       } as React.CSSProperties)
     : null;
   const iosPwaFabStyle = isIOSPwaWeb
