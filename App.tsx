@@ -1467,13 +1467,10 @@ function MainApp() {
 
             {screen !== "config" ? (
               <View
-                style={[
-                  styles.tabRow,
-                  iosPwaTabRowStyle,
-                  { backgroundColor: colors.card, borderTopColor: colors.borderSoft },
-                ]}
+                style={[styles.tabRow, { backgroundColor: colors.card, borderTopColor: colors.borderSoft }]}
               >
-                {(
+                <View style={[styles.tabRowInner, iosPwaTabRowStyle]}>
+                  {(
                   [
                     ["home", "Inicio", "⌂"],
                     ["expenses", "Gastos", "$"],
@@ -1553,6 +1550,15 @@ function MainApp() {
                     </View>
                   </TouchableOpacity>
                 ))}
+                </View>
+                {isIOSPwaWeb ? (
+                  <div
+                    style={{
+                      height: "env(safe-area-inset-bottom)",
+                      background: colors.card,
+                    }}
+                  />
+                ) : null}
               </View>
             ) : null}
 
@@ -4344,16 +4350,18 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
+    backgroundColor: "rgba(255,255,255,0.96)",
+    borderTopWidth: 1,
+    borderTopColor: "#e3dfd2",
+    zIndex: 20,
+  },
+  tabRowInner: {
     flexDirection: "row",
     justifyContent: "space-around",
     gap: scale(2),
     paddingHorizontal: scale(10),
     paddingTop: scale(2),
     paddingBottom: scale(5),
-    backgroundColor: "rgba(255,255,255,0.96)",
-    borderTopWidth: 1,
-    borderTopColor: "#e3dfd2",
-    zIndex: 20,
   },
   tabItem: { flex: 1, alignItems: "center", justifyContent: "flex-end", minHeight: scale(48) },
   tabPill: {
