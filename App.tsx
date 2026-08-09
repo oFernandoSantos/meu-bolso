@@ -163,6 +163,37 @@ type MainAppState = {
 type PluggyProxyConfigStatus = {
   configured: boolean;
   clientIdMasked: string | null;
+  apiUrl?: string;
+  webhookConfigured?: boolean;
+  webhookUrl?: string | null;
+  webhookReady?: boolean;
+};
+
+type PluggyPersistedAccountSummary = {
+  nome: string;
+  tipo: string;
+  saldoAtual: number;
+  instituicao?: string | null;
+};
+
+type PluggyPersistedCardSummary = {
+  nome: string;
+  saldoAtual: number;
+  limiteTotal: number;
+  ultimosQuatroDigitos?: string | null;
+};
+
+type PluggyPersistedConnectionSummary = {
+  id: string;
+  itemId: string;
+  status: string;
+  lastError: string | null;
+  lastSyncAt: string | null;
+  updatedAt: string | null;
+  integrationStatus: string | null;
+  accounts: PluggyPersistedAccountSummary[];
+  cards: PluggyPersistedCardSummary[];
+  transactionsCount: number;
 };
 
 type AuthMode = "login" | "register";
@@ -529,6 +560,22 @@ function isLocalBrowserHost(): boolean {
   );
 }
 
+function defaultPluggyBackendBaseUrl(): string {
+  const envBackendUrl =
+    typeof import.meta !== "undefined" &&
+    typeof import.meta.env?.VITE_PLUGGY_BACKEND_URL === "string" &&
+    import.meta.env.VITE_PLUGGY_BACKEND_URL.trim()
+      ? import.meta.env.VITE_PLUGGY_BACKEND_URL.trim().replace(/\/$/, "")
+      : null;
+
+  if (envBackendUrl) return envBackendUrl;
+  if (typeof window === "undefined") return "http://localhost:3000";
+  if (isLocalBrowserHost()) {
+    return `${window.location.protocol}//${window.location.hostname}:3000`;
+  }
+  return window.location.origin;
+}
+
 function resolveTheme(
   theme: Database["settings"]["theme"],
   systemTheme: ResolvedTheme,
@@ -693,12 +740,14 @@ function MainApp() {
   const systemTheme = useColorScheme() === "dark" ? "dark" : "light";
   const [state, setState] = useState<MainAppState>({ db: emptyDatabase(), hydrated: false });
   const [pluggyComponent, setPluggyComponent] = useState<PluggyConnectComponent | null>(null);
-  const [pluggyClientIdDraft, setPluggyClientIdDraft] = useState("");
-  const [pluggyClientSecretDraft, setPluggyClientSecretDraft] = useState("");
+  const [pluggyBackendUrlDraft, setPluggyBackendUrlDraft] = useState("");
   const [pluggyConfigStatus, setPluggyConfigStatus] = useState<PluggyProxyConfigStatus>({
     configured: false,
     clientIdMasked: null,
   });
+  const [pluggyConnections, setPluggyConnections] = useState<PluggyPersistedConnectionSummary[]>(
+    [],
+  );
   const [pluggyConnectToken, setPluggyConnectToken] = useState<string | null>(null);
   const [pluggyWidgetItemId, setPluggyWidgetItemId] = useState<string | undefined>(undefined);
   const [pluggySelectedConnectorId, setPluggySelectedConnectorId] = useState<number | undefined>(
@@ -736,10 +785,12 @@ function MainApp() {
         const db = await readDatabase();
         if (active) {
           setState({ db, hydrated: true });
+          setPluggyBackendUrlDraft(db.settings.pluggy.proxy_url || defaultPluggyBackendBaseUrl());
         }
       } catch {
         if (active) {
           setState({ db: emptyDatabase(), hydrated: true });
+          setPluggyBackendUrlDraft(defaultPluggyBackendBaseUrl());
         }
       }
     })();
@@ -757,7 +808,16 @@ function MainApp() {
   useEffect(() => {
     if (!state.hydrated || Platform.OS !== "web") return;
     void loadPluggyProxyConfigStatus();
-  }, [state.hydrated]);
+  }, [state.hydrated, state.db.settings.pluggy.proxy_url]);
+
+  useEffect(() => {
+    if (!state.hydrated || Platform.OS !== "web") return;
+    if (!state.db.settings.auth.email) {
+      setPluggyConnections([]);
+      return;
+    }
+    void loadPluggyConnections();
+  }, [state.hydrated, state.db.settings.auth.email, state.db.settings.pluggy.proxy_url]);
 
   useEffect(() => {
     setExpenseDraft((current) =>
@@ -925,48 +985,82 @@ function MainApp() {
     setTab("home");
   }
 
-  async function fetchPluggyProxy<T>(path: string, body: Record<string, unknown>) {
+  async function requestPluggyApi<T>(
+    path: string,
+    options?: {
+      method?: "GET" | "POST";
+      body?: Record<string, unknown>;
+    },
+  ) {
     const configuredBaseUrl = (
-      state.db.settings.pluggy.proxy_url || "http://localhost:8787"
+      state.db.settings.pluggy.proxy_url || defaultPluggyBackendBaseUrl()
     ).replace(/\/$/, "");
     const candidateBaseUrls = [configuredBaseUrl];
 
-    if (isLocalBrowserHost() && configuredBaseUrl !== "http://localhost:8787") {
-      candidateBaseUrls.push("http://localhost:8787");
+    if (
+      typeof window !== "undefined" &&
+      window.location.origin &&
+      window.location.origin !== configuredBaseUrl
+    ) {
+      candidateBaseUrls.push(window.location.origin);
+    }
+
+    if (isLocalBrowserHost() && configuredBaseUrl !== "http://localhost:3000") {
+      candidateBaseUrls.push("http://localhost:3000");
     }
 
     let lastError: Error | null = null;
+    const method = options?.method ?? "POST";
+    const userEmail = state.db.settings.auth.email?.trim().toLowerCase() || null;
+    const requiresUserEmail = path !== "/api/pluggy/config/status" && path !== "/api/pluggy/webhook/ensure";
+
+    if (requiresUserEmail && !userEmail) {
+      throw new Error("Faca login no app antes de usar a integracao Pluggy.");
+    }
 
     for (const baseUrl of candidateBaseUrls) {
       try {
-        const response = await fetch(`${baseUrl}${path}`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        });
-        const payload = (await response.json()) as { error?: string } & T;
-        if (!response.ok || payload.error) {
-          throw new Error(payload.error || `Erro Pluggy ${response.status}`);
+        const headers: Record<string, string> = {
+          "Content-Type": "application/json",
+        };
+
+        if (userEmail) {
+          headers["X-User-Email"] = userEmail;
         }
-        return payload;
+
+        const response = await fetch(`${baseUrl}${path}`, {
+          method,
+          headers,
+          ...(method === "POST" ? { body: JSON.stringify(options?.body || {}) } : {}),
+        });
+        const payload = (await response.json()) as {
+          sucesso?: boolean;
+          dados?: T;
+          error?: string;
+          erro?: string;
+        };
+        if (!response.ok || payload.error || payload.erro) {
+          throw new Error(payload.error || payload.erro || `Erro Pluggy ${response.status}`);
+        }
+        return (payload.dados ?? payload) as T;
       } catch (error) {
         lastError =
-          error instanceof Error ? error : new Error("Falha ao conectar no proxy Pluggy local");
+          error instanceof Error ? error : new Error("Falha ao conectar no backend Pluggy");
       }
     }
 
     throw new Error(
       lastError?.message === "Failed to fetch"
-        ? "Proxy Pluggy local offline. Reinicie `npm run pluggy:proxy` e teste URL `http://localhost:8787` se app estiver no mesmo PC."
-        : (lastError?.message ?? "Falha ao conectar no proxy Pluggy local"),
+        ? "Backend Pluggy offline. Inicie o backend em `http://localhost:3000` ou publique `/api/pluggy` no mesmo dominio do app."
+        : (lastError?.message ?? "Falha ao conectar no backend Pluggy"),
     );
   }
 
   async function loadPluggyProxyConfigStatus() {
     try {
-      const payload = await fetchPluggyProxy<PluggyProxyConfigStatus>(
+      const payload = await requestPluggyApi<PluggyProxyConfigStatus>(
         "/api/pluggy/config/status",
-        {},
+        { method: "POST", body: {} },
       );
       setPluggyConfigStatus(payload);
     } catch {
@@ -974,29 +1068,29 @@ function MainApp() {
     }
   }
 
-  async function savePluggyProxyCredentials() {
-    if (!pluggyClientIdDraft.trim() || !pluggyClientSecretDraft.trim()) {
-      notify("Pluggy", "Preencha Client ID e Client Secret.");
+  async function loadPluggyConnections() {
+    try {
+      const payload = await requestPluggyApi<{ usuarioId: string; conexoes: PluggyPersistedConnectionSummary[] }>(
+        "/api/pluggy/conexoes",
+        { method: "GET" },
+      );
+      setPluggyConnections(payload.conexoes ?? []);
+    } catch {
+      setPluggyConnections([]);
+    }
+  }
+
+  function savePluggyBackendUrl() {
+    const nextUrl = pluggyBackendUrlDraft.trim().replace(/\/$/, "");
+    if (!nextUrl) {
+      notify("Pluggy", "Preencha a URL do backend Pluggy.");
       return;
     }
-
-    try {
-      setPluggyBusy(true);
-      const payload = await fetchPluggyProxy<PluggyProxyConfigStatus>("/api/pluggy/config/save", {
-        clientId: pluggyClientIdDraft,
-        clientSecret: pluggyClientSecretDraft,
-      });
-      setPluggyConfigStatus(payload);
-      setPluggyClientSecretDraft("");
-      notify("Pluggy", "Credenciais salvas no proxy local.");
-    } catch (error) {
-      notify(
-        "Pluggy",
-        error instanceof Error ? error.message : "Falha ao salvar credenciais no proxy local.",
-      );
-    } finally {
-      setPluggyBusy(false);
-    }
+    setPluggySettings((current) => ({
+      ...current,
+      proxy_url: nextUrl,
+    }));
+    notify("Pluggy", "URL do backend Pluggy salva neste dispositivo.");
   }
 
   async function loadPluggyWidget() {
@@ -1010,18 +1104,20 @@ function MainApp() {
 
   async function openPluggyConnect(itemId?: string, selectedConnectorId?: number) {
     if (Platform.OS !== "web") {
-      notify("Pluggy", "Fluxo Pluggy habilitado no navegador web com proxy local.");
+      notify("Pluggy", "Fluxo Pluggy habilitado no navegador web via backend.");
       return;
     }
 
     try {
       setPluggyBusy(true);
       await loadPluggyWidget();
-      const token = await fetchPluggyProxy<{ accessToken: string }>("/api/pluggy/connect-token", {
-        itemId,
-        options: {
-          clientUserId: "meu-bolso-local-user",
-          avoidDuplicates: true,
+      const token = await requestPluggyApi<{ accessToken: string }>("/api/pluggy/connect-token", {
+        method: "POST",
+        body: {
+          itemId,
+          options: {
+            avoidDuplicates: true,
+          },
         },
       });
       setPluggyWidgetItemId(itemId);
@@ -1056,7 +1152,10 @@ function MainApp() {
 
     try {
       setPluggyBusy(true);
-      const payload = await fetchPluggyProxy<PluggySyncPayload>("/api/pluggy/sync", { itemId });
+      const payload = await requestPluggyApi<PluggySyncPayload>("/api/pluggy/sync", {
+        method: "POST",
+        body: { itemId },
+      });
       const merged = mergePluggySync(state.db, payload);
       setState({
         db: {
@@ -1080,6 +1179,7 @@ function MainApp() {
         setTab("expenses");
         setScreen("expenses");
       }
+      void loadPluggyConnections();
       notify("Pluggy", `${merged.importedCount} gasto(s) importado(s).`);
     } catch (error) {
       setPluggySettings((current) => ({
@@ -1686,17 +1786,19 @@ function MainApp() {
                   colors={colors}
                   pluggy={pluggySettings}
                   pluggyBusy={pluggyBusy}
-                  pluggyClientIdDraft={pluggyClientIdDraft}
-                  pluggyClientSecretDraft={pluggyClientSecretDraft}
+                  pluggyBackendUrlDraft={pluggyBackendUrlDraft}
                   pluggyConfigStatus={pluggyConfigStatus}
-                  onPluggyClientIdChange={setPluggyClientIdDraft}
-                  onPluggyClientSecretChange={setPluggyClientSecretDraft}
-                  onSavePluggyCredentials={savePluggyProxyCredentials}
+                  pluggyConnections={pluggyConnections}
+                  onPluggyBackendUrlChange={setPluggyBackendUrlDraft}
+                  onSavePluggyBackendUrl={savePluggyBackendUrl}
                   onPluggyConnect={() => openPluggyConnect()}
                   onPluggyResync={() => openPluggyConnect(pluggySettings.item_id ?? undefined)}
                   onPluggyImport={() => syncPluggyData()}
                   onExportBackup={exportBackup}
-                  onClearPluggy={() => setPluggySettings(() => emptyDatabase().settings.pluggy)}
+                  onClearPluggy={() => {
+                    setPluggySettings(() => emptyDatabase().settings.pluggy);
+                    setPluggyConnections([]);
+                  }}
                   onClearData={() => setState({ db: emptyDatabase(), hydrated: true })}
                   onLogout={handleLogout}
                 />
@@ -2732,12 +2834,11 @@ function ConfigTab({
   colors,
   pluggy,
   pluggyBusy,
-  pluggyClientIdDraft,
-  pluggyClientSecretDraft,
+  pluggyBackendUrlDraft,
   pluggyConfigStatus,
-  onPluggyClientIdChange,
-  onPluggyClientSecretChange,
-  onSavePluggyCredentials,
+  pluggyConnections,
+  onPluggyBackendUrlChange,
+  onSavePluggyBackendUrl,
   onPluggyConnect,
   onPluggyResync,
   onPluggyImport,
@@ -2749,12 +2850,11 @@ function ConfigTab({
   colors: typeof lightColors;
   pluggy: Database["settings"]["pluggy"];
   pluggyBusy: boolean;
-  pluggyClientIdDraft: string;
-  pluggyClientSecretDraft: string;
+  pluggyBackendUrlDraft: string;
   pluggyConfigStatus: PluggyProxyConfigStatus;
-  onPluggyClientIdChange: (value: string) => void;
-  onPluggyClientSecretChange: (value: string) => void;
-  onSavePluggyCredentials: () => void;
+  pluggyConnections: PluggyPersistedConnectionSummary[];
+  onPluggyBackendUrlChange: (value: string) => void;
+  onSavePluggyBackendUrl: () => void;
   onPluggyConnect: () => void;
   onPluggyResync: () => void;
   onPluggyImport: () => void;
@@ -2793,7 +2893,7 @@ function ConfigTab({
           { backgroundColor: colors.card, borderColor: colors.borderSoft, gap: scale(10) },
         ]}
       >
-        <Field colors={colors} label="Client ID">
+        <Field colors={colors} label="URL do backend Pluggy">
           <TextInput
             style={[
               styles.input,
@@ -2803,36 +2903,27 @@ function ConfigTab({
                 color: colors.textStrong,
               },
             ]}
-            value={pluggyClientIdDraft}
-            onChangeText={onPluggyClientIdChange}
+            value={pluggyBackendUrlDraft}
+            onChangeText={onPluggyBackendUrlChange}
             autoCapitalize="none"
             autoCorrect={false}
-            placeholder="Cole seu Client ID da Pluggy"
-            placeholderTextColor={colors.textMuted}
-          />
-        </Field>
-        <Field colors={colors} label="Client Secret">
-          <TextInput
-            style={[
-              styles.input,
-              {
-                backgroundColor: colors.background,
-                borderColor: colors.borderSoft,
-                color: colors.textStrong,
-              },
-            ]}
-            value={pluggyClientSecretDraft}
-            onChangeText={onPluggyClientSecretChange}
-            autoCapitalize="none"
-            autoCorrect={false}
-            secureTextEntry
-            placeholder="Cole seu Client Secret da Pluggy"
+            placeholder="http://localhost:3000"
             placeholderTextColor={colors.textMuted}
           />
         </Field>
         {pluggyConfigStatus.clientIdMasked ? (
           <Text style={[styles.fieldHint, { color: colors.textMuted }]}>
-            Credencial ativa: {pluggyConfigStatus.clientIdMasked}
+            Credencial ativa no backend: {pluggyConfigStatus.clientIdMasked}
+          </Text>
+        ) : null}
+        {pluggyConfigStatus.apiUrl ? (
+          <Text style={[styles.fieldHint, { color: colors.textMuted }]}>
+            API Pluggy configurada no backend: {pluggyConfigStatus.apiUrl}
+          </Text>
+        ) : null}
+        {pluggyConfigStatus.webhookUrl ? (
+          <Text style={[styles.fieldHint, { color: colors.textMuted }]}>
+            Webhook publico esperado: {pluggyConfigStatus.webhookUrl}
           </Text>
         ) : null}
         <TouchableOpacity
@@ -2840,12 +2931,12 @@ function ConfigTab({
             styles.secondaryButton,
             { backgroundColor: colors.background, borderColor: colors.borderSoft },
           ]}
-          onPress={onSavePluggyCredentials}
+          onPress={onSavePluggyBackendUrl}
         >
           <View style={styles.actionButtonContent}>
             <Settings size={18} color={colors.textStrong} />
             <Text style={[styles.secondaryButtonText, { color: colors.textStrong }]}>
-              {pluggyBusy ? "Salvando..." : "Salvar credenciais Pluggy"}
+              Salvar URL do backend
             </Text>
           </View>
         </TouchableOpacity>
@@ -2880,6 +2971,21 @@ function ConfigTab({
         <Text style={[styles.sectionSubtitle, { color: colors.textMuted }]}>
           {connectionSummary}
         </Text>
+        <Text style={[styles.sectionSubtitle, { color: colors.textMuted }]}>
+          {pluggyConfigStatus.configured
+            ? "Segredos Pluggy presentes somente no backend."
+            : "Backend ainda sem PLUGGY_CLIENT_ID e PLUGGY_CLIENT_SECRET."}
+        </Text>
+        <Text style={[styles.sectionSubtitle, { color: colors.textMuted }]}>
+          {pluggyConfigStatus.webhookConfigured
+            ? "Webhook backend configurado por variavel de ambiente."
+            : "Webhook ainda nao configurado no backend."}
+        </Text>
+        <Text style={[styles.sectionSubtitle, { color: colors.textMuted }]}>
+          {pluggyConfigStatus.webhookReady
+            ? "URL publica HTTPS pronta para registrar webhook na Pluggy."
+            : "Defina API_EXTERNAL_URL com HTTPS para registrar o webhook na Pluggy."}
+        </Text>
         {pluggy.last_error ? (
           <Text style={[styles.sectionSubtitle, { color: statusTone }]}>{pluggy.last_error}</Text>
         ) : null}
@@ -2899,6 +3005,63 @@ function ConfigTab({
           </Text>
         </View>
       </TouchableOpacity>
+      {pluggyConnections.length > 0 ? (
+        <>
+          <SectionTitle
+            colors={colors}
+            title="Contas reais importadas"
+            subtitle="Resumo persistido no backend das contas, saldos e transacoes vindos da Pluggy."
+          />
+          {pluggyConnections.map((connection) => (
+            <View
+              key={connection.id}
+              style={[
+                styles.groupSection,
+                { backgroundColor: colors.card, borderColor: colors.borderSoft, gap: scale(8) },
+              ]}
+            >
+              <Text style={[styles.groupLabel, { color: colors.textStrong }]}>
+                Item {connection.itemId.slice(0, 8)}...
+              </Text>
+              <Text style={[styles.sectionSubtitle, { color: colors.textMuted }]}>
+                Status persistido: {connection.status}
+              </Text>
+              {connection.lastSyncAt ? (
+                <Text style={[styles.sectionSubtitle, { color: colors.textMuted }]}>
+                  Ultima sincronizacao backend: {formatDateBR(connection.lastSyncAt)}
+                </Text>
+              ) : null}
+              <Text style={[styles.sectionSubtitle, { color: colors.textMuted }]}>
+                Total de transacoes persistidas: {connection.transactionsCount}
+              </Text>
+              {connection.accounts.map((account, index) => (
+                <Text
+                  key={`${connection.id}-account-${index}`}
+                  style={[styles.sectionSubtitle, { color: colors.textMuted }]}
+                >
+                  Conta: {account.nome} | Tipo: {account.tipo} | Saldo:{" "}
+                  {formatCurrency(Math.round(account.saldoAtual * 100))}
+                </Text>
+              ))}
+              {connection.cards.map((card, index) => (
+                <Text
+                  key={`${connection.id}-card-${index}`}
+                  style={[styles.sectionSubtitle, { color: colors.textMuted }]}
+                >
+                  Cartao: {card.nome}
+                  {card.ultimosQuatroDigitos ? ` final ${card.ultimosQuatroDigitos}` : ""} | Limite:{" "}
+                  {formatCurrency(Math.round(card.limiteTotal * 100))}
+                </Text>
+              ))}
+              {connection.lastError ? (
+                <Text style={[styles.sectionSubtitle, { color: "#b00020" }]}>
+                  Ultimo erro backend: {connection.lastError}
+                </Text>
+              ) : null}
+            </View>
+          ))}
+        </>
+      ) : null}
       {pluggy.item_id ? (
         <>
           <SectionTitle colors={colors} title="Sincronizacao" />

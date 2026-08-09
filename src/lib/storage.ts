@@ -71,7 +71,7 @@ export function emptyDatabase(): Database {
         item_status: null,
         last_sync_at: null,
         last_error: null,
-        proxy_url: "http://localhost:8787",
+        proxy_url: null,
       },
       auth: {
         email: null,
@@ -330,9 +330,7 @@ export function normalizeDatabase(input: unknown): Database {
               item_status: asNullableString(input["settings"]["pluggy"]["item_status"]),
               last_sync_at: asNullableString(input["settings"]["pluggy"]["last_sync_at"]),
               last_error: asNullableString(input["settings"]["pluggy"]["last_error"]),
-              proxy_url:
-                asNullableString(input["settings"]["pluggy"]["proxy_url"]) ??
-                "http://localhost:8787",
+              proxy_url: asNullableString(input["settings"]["pluggy"]["proxy_url"]),
             }
           : base.settings.pluggy,
         auth: isObject(input["settings"]["auth"])
