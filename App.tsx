@@ -1530,6 +1530,7 @@ function MainApp() {
         paddingLeft: "env(safe-area-inset-left)",
         paddingRight: "env(safe-area-inset-right)",
         overflow: "hidden",
+        backgroundColor: "#050505",
       } as React.CSSProperties)
     : null;
   const iosPwaContainerStyle = isIOSPwaWeb
@@ -1537,12 +1538,14 @@ function MainApp() {
         height: "100%",
         minHeight: "100%",
         overflow: "hidden",
+        backgroundColor: "#050505",
       } as React.CSSProperties)
     : null;
   const iosPwaTabRowStyle = isIOSPwaWeb
     ? ({
         bottom: 0,
         paddingBottom: iosSafeBottom,
+        backgroundColor: "#050505",
       } as React.CSSProperties)
     : null;
   const iosPwaTabRowInnerStyle = isIOSPwaWeb
@@ -1698,6 +1701,8 @@ function MainApp() {
               contentContainerStyle={[styles.scrollContent, iosPwaScrollContentStyle]}
               showsVerticalScrollIndicator={false}
               showsHorizontalScrollIndicator={false}
+              bounces={false}
+              alwaysBounceVertical={false}
             >
               {screen === "home" ? (
                 <HomeTab

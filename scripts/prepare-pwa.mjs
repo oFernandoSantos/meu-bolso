@@ -34,7 +34,7 @@ const manifest = {
   ],
 };
 
-const serviceWorker = `const CACHE_NAME = "meu-bolso-v3";
+const serviceWorker = `const CACHE_NAME = "meu-bolso-v4";
 const APP_SHELL = ["/", "/index.html", "/manifest.webmanifest", "/favicon.png", "/apple-touch-icon.png"];
 
 self.addEventListener("install", (event) => {
@@ -101,13 +101,16 @@ const pwaHeadBlock = `
         min-height: 100dvh;
         margin: 0;
         overflow: hidden;
-        background: #f6f4ea;
+        overscroll-behavior: none;
+        background: #050505;
       }
 
       body {
         position: fixed;
         inset: 0;
         overflow: hidden;
+        overscroll-behavior: none;
+        background: #050505;
       }
     </style>
     <!-- PWA_HEAD_END -->
