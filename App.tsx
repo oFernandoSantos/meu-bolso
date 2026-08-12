@@ -1518,7 +1518,6 @@ function MainApp() {
   const iosSafeBottom = "env(safe-area-inset-bottom)";
   const iosSafeTop = "env(safe-area-inset-top)";
   const iosPwaBottomInset = `max(0px, calc(${iosSafeBottom} - 18px))`;
-  const iosPwaDockInset = `max(0px, calc(${iosSafeBottom} - 28px))`;
   const RootShell = isIOSPwaWeb ? View : SafeAreaView;
   const iosPwaRootStyle = isIOSPwaWeb
     ? ({
@@ -1544,8 +1543,17 @@ function MainApp() {
   const iosPwaTabRowStyle = isIOSPwaWeb
     ? ({
         bottom: 0,
-        paddingBottom: iosPwaDockInset,
-        backgroundColor: "#050505",
+        paddingBottom: iosPwaBottomInset,
+      } as React.CSSProperties)
+    : null;
+  const iosPwaBottomFillStyle = isIOSPwaWeb
+    ? ({
+        position: "absolute",
+        left: 0,
+        right: 0,
+        bottom: 0,
+        height: iosSafeBottom,
+        zIndex: 19,
       } as React.CSSProperties)
     : null;
   const iosPwaTabRowInnerStyle = isIOSPwaWeb
@@ -1605,17 +1613,22 @@ function MainApp() {
             />
 
             {screen !== "config" ? (
-              <View
-                style={[
-                  styles.tabRow,
-                  iosPwaTabRowStyle,
-                  { backgroundColor: colors.card, borderTopColor: colors.borderSoft },
-                ]}
-              >
-                <View style={[styles.tabRowInner, iosPwaTabRowInnerStyle]}>
-                  {(
-                  [
-                    ["home", "Inicio", "⌂"],
+              <>
+                <View
+                  pointerEvents="none"
+                  style={[iosPwaBottomFillStyle, { backgroundColor: colors.card }]}
+                />
+                <View
+                  style={[
+                    styles.tabRow,
+                    iosPwaTabRowStyle,
+                    { backgroundColor: colors.card, borderTopColor: colors.borderSoft },
+                  ]}
+                >
+                  <View style={[styles.tabRowInner, iosPwaTabRowInnerStyle]}>
+                    {(
+                    [
+                      ["home", "Inicio", "⌂"],
                     ["expenses", "Gastos", "$"],
                     ["cards", "Cartoes", "="],
                     ["categories", "Categorias", "⌗"],
@@ -1693,8 +1706,9 @@ function MainApp() {
                     </View>
                   </TouchableOpacity>
                 ))}
+                  </View>
                 </View>
-              </View>
+              </>
             ) : null}
 
             <ScrollView
