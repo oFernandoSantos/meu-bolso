@@ -1552,7 +1552,7 @@ function MainApp() {
         left: 0,
         right: 0,
         bottom: 0,
-        height: iosSafeBottom,
+        height: `calc(${iosSafeBottom} + 12px)`,
         zIndex: 19,
       } as React.CSSProperties)
     : null;
