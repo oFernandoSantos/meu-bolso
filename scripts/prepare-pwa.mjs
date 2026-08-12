@@ -34,7 +34,7 @@ const manifest = {
   ],
 };
 
-const serviceWorker = `const CACHE_NAME = "meu-bolso-v4";
+const serviceWorker = `const CACHE_NAME = "meu-bolso-v5";
 const APP_SHELL = ["/", "/index.html", "/manifest.webmanifest", "/favicon.png", "/apple-touch-icon.png"];
 
 self.addEventListener("install", (event) => {
