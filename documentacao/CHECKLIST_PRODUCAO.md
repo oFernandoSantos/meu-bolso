@@ -8,6 +8,8 @@
 - [ ] Validar `/api/health`
 - [ ] Configurar dominio e DNS
 - [ ] Configurar HTTPS
+- [ ] Gerar certificado Let's Encrypt com `docker compose --profile tls run --rm certbot`
+- [ ] Reiniciar Nginx apos certificado com `docker compose up -d nginx`
 - [ ] Validar backup e restauracao
 - [ ] Validar auth Supabase
 - [ ] Validar RLS com usuarios distintos
