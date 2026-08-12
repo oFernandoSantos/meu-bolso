@@ -1517,6 +1517,7 @@ function MainApp() {
     /iPad|iPhone|iPod/.test(navigator.userAgent);
   const iosSafeBottom = "env(safe-area-inset-bottom)";
   const iosSafeTop = "env(safe-area-inset-top)";
+  const iosPwaBottomInset = `max(0px, calc(${iosSafeBottom} - 18px))`;
   const RootShell = isIOSPwaWeb ? View : SafeAreaView;
   const iosPwaRootStyle = isIOSPwaWeb
     ? ({
@@ -1542,7 +1543,7 @@ function MainApp() {
   const iosPwaTabRowStyle = isIOSPwaWeb
     ? ({
         bottom: 0,
-        paddingBottom: iosSafeBottom,
+        paddingBottom: iosPwaBottomInset,
       } as React.CSSProperties)
     : null;
   const iosPwaTabRowInnerStyle = isIOSPwaWeb
@@ -1554,12 +1555,12 @@ function MainApp() {
     : null;
   const iosPwaScrollContentStyle = isIOSPwaWeb
     ? ({
-        paddingBottom: `calc(${scale(126)}px + ${iosSafeBottom})`,
+        paddingBottom: `calc(${scale(126)}px + ${iosPwaBottomInset})`,
       } as React.CSSProperties)
     : null;
   const iosPwaFabStyle = isIOSPwaWeb
     ? ({
-        bottom: `calc(${scale(82)}px + ${iosSafeBottom})`,
+        bottom: `calc(${scale(82)}px + ${iosPwaBottomInset})`,
       } as React.CSSProperties)
     : null;
 
