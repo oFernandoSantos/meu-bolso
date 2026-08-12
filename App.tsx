@@ -1517,7 +1517,8 @@ function MainApp() {
     /iPad|iPhone|iPod/.test(navigator.userAgent);
   const iosSafeBottom = "env(safe-area-inset-bottom)";
   const iosSafeTop = "env(safe-area-inset-top)";
-  const iosPwaFooterInset = `max(0px, calc(${iosSafeBottom} - 18px))`;
+  const iosPwaBottomInset = `max(0px, calc(${iosSafeBottom} - 18px))`;
+  const iosPwaDockInset = `max(0px, calc(${iosSafeBottom} - 28px))`;
   const RootShell = isIOSPwaWeb ? View : SafeAreaView;
   const iosPwaRootStyle = isIOSPwaWeb
     ? ({
@@ -1531,7 +1532,6 @@ function MainApp() {
         paddingLeft: "env(safe-area-inset-left)",
         paddingRight: "env(safe-area-inset-right)",
         overflow: "hidden",
-        backgroundColor: "#050505",
       } as React.CSSProperties)
     : null;
   const iosPwaContainerStyle = isIOSPwaWeb
@@ -1539,31 +1539,30 @@ function MainApp() {
         height: "100%",
         minHeight: "100%",
         overflow: "hidden",
-        backgroundColor: "#050505",
       } as React.CSSProperties)
     : null;
   const iosPwaTabRowStyle = isIOSPwaWeb
     ? ({
         bottom: 0,
-        paddingBottom: iosPwaFooterInset,
+        paddingBottom: iosPwaDockInset,
         backgroundColor: "#050505",
       } as React.CSSProperties)
     : null;
   const iosPwaTabRowInnerStyle = isIOSPwaWeb
     ? ({
         minHeight: scale(62),
-        paddingBottom: scale(6),
+        paddingBottom: scale(8),
         paddingTop: scale(4),
       } as React.CSSProperties)
     : null;
   const iosPwaScrollContentStyle = isIOSPwaWeb
     ? ({
-        paddingBottom: `calc(${scale(126)}px + ${iosPwaFooterInset})`,
+        paddingBottom: `calc(${scale(126)}px + ${iosPwaBottomInset})`,
       } as React.CSSProperties)
     : null;
   const iosPwaFabStyle = isIOSPwaWeb
     ? ({
-        bottom: `calc(${scale(82)}px + ${iosPwaFooterInset})`,
+        bottom: `calc(${scale(82)}px + ${iosPwaBottomInset})`,
       } as React.CSSProperties)
     : null;
 
@@ -1702,8 +1701,6 @@ function MainApp() {
               contentContainerStyle={[styles.scrollContent, iosPwaScrollContentStyle]}
               showsVerticalScrollIndicator={false}
               showsHorizontalScrollIndicator={false}
-              bounces={false}
-              alwaysBounceVertical={false}
             >
               {screen === "home" ? (
                 <HomeTab
