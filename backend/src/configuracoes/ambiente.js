@@ -26,6 +26,8 @@ const esquema = z.object({
   POSTGRES_PASSWORD: z.string().default("meu_bolso"),
   JWT_SECRET: z.string().min(1, "JWT_SECRET obrigatorio"),
   JWT_REFRESH_SECRET: z.string().min(1, "JWT_REFRESH_SECRET obrigatorio"),
+  JWT_EXPIRES_IN: z.string().default("15m"),
+  JWT_REFRESH_EXPIRES_IN: z.string().default("30d"),
   SUPABASE_URL: z.string().url("SUPABASE_URL invalida"),
   SUPABASE_ANON_KEY: z.string().min(1, "SUPABASE_ANON_KEY obrigatoria"),
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1, "SUPABASE_SERVICE_ROLE_KEY obrigatoria"),
