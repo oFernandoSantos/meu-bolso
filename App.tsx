@@ -586,6 +586,34 @@ function isLocalBrowserHost(): boolean {
   );
 }
 
+function isLoopbackUrl(value: string | null | undefined): boolean {
+  if (!value) return false;
+
+  try {
+    const parsed = new URL(value);
+    return (
+      parsed.hostname === "localhost" ||
+      parsed.hostname === "127.0.0.1" ||
+      parsed.hostname === "::1"
+    );
+  } catch {
+    return false;
+  }
+}
+
+function resolveAppBackendBaseUrl(configuredBaseUrl: string | null | undefined): string {
+  const trimmed = configuredBaseUrl?.trim().replace(/\/$/, "") || null;
+
+  if (trimmed) {
+    if (typeof window !== "undefined" && !isLocalBrowserHost() && isLoopbackUrl(trimmed)) {
+      return window.location.origin;
+    }
+    return trimmed;
+  }
+
+  return defaultPluggyBackendBaseUrl();
+}
+
 function defaultPluggyBackendBaseUrl(): string {
   const envBackendUrl =
     typeof import.meta !== "undefined" &&
@@ -852,8 +880,9 @@ function MainApp() {
       try {
         const db = await readDatabase();
         if (active) {
+          const resolvedBackendUrl = resolveAppBackendBaseUrl(db.settings.pluggy.proxy_url);
           setState({ db, hydrated: true });
-          setPluggyBackendUrlDraft(db.settings.pluggy.proxy_url || defaultPluggyBackendBaseUrl());
+          setPluggyBackendUrlDraft(resolvedBackendUrl);
         }
       } catch {
         if (active) {
@@ -1066,9 +1095,7 @@ function MainApp() {
       accessToken?: string | null;
     },
   ) {
-    const configuredBaseUrl = (
-      state.db.settings.pluggy.proxy_url || defaultPluggyBackendBaseUrl()
-    ).replace(/\/$/, "");
+    const configuredBaseUrl = resolveAppBackendBaseUrl(state.db.settings.pluggy.proxy_url);
     const candidateBaseUrls = resolveBackendCandidateBaseUrls(configuredBaseUrl);
     const method = options?.method ?? "POST";
     let lastError: Error | null = null;
@@ -1105,7 +1132,9 @@ function MainApp() {
 
     throw new Error(
       lastError?.message === "Failed to fetch"
-        ? "Backend offline. Inicie backend em `http://localhost:3000` ou publique API no mesmo dominio do app."
+        ? isLocalBrowserHost()
+          ? "Backend offline. Inicie backend em `http://localhost:3000` ou publique API no mesmo dominio do app."
+          : "Backend offline. A API publicada nao respondeu no mesmo dominio do app."
         : (lastError?.message ?? "Falha ao conectar no backend"),
     );
   }
