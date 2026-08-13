@@ -13,7 +13,7 @@ import {
   Tag,
   Trash2,
 } from "lucide-react";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useEffectEvent, useMemo, useState } from "react";
 import {
   Dimensions,
   Image,
@@ -197,6 +197,25 @@ type PluggyPersistedConnectionSummary = {
 };
 
 type AuthMode = "login" | "register";
+
+type AuthApiSessionPayload = {
+  usuario: {
+    id: string;
+    email: string | null;
+  };
+  sessao: {
+    accessToken: string;
+    refreshToken: string;
+    expiresAt: string | null;
+  };
+};
+
+type AuthApiMePayload = {
+  usuario: {
+    id: string;
+    email: string | null;
+  };
+};
 
 type PluggyConnectProps = {
   connectToken: string;
@@ -426,7 +445,10 @@ function makeSavingsDraft(): SavingsDraft {
 }
 
 function formatHexColorInput(value: string): string {
-  const digits = value.replace(/[^0-9a-fA-F]/g, "").slice(0, 6).toUpperCase();
+  const digits = value
+    .replace(/[^0-9a-fA-F]/g, "")
+    .slice(0, 6)
+    .toUpperCase();
   return digits ? `#${digits}` : "#";
 }
 
@@ -539,6 +561,10 @@ function humanizePluggyError(message: string): string {
     return "Sua aplicacao Pluggy atual nao tem permissao para conectar contas reais. Habilite live/producao na Pluggy.";
   }
 
+  if (message === "ITEM_USER_ALREADY_EXISTS") {
+    return "Ja existe uma conexao antiga para essas credenciais na Pluggy. Vamos permitir criar uma nova conexao quando ela nao existir no app.";
+  }
+
   if (
     message.includes("Requiring unknown module") ||
     message.includes("Metro") ||
@@ -574,6 +600,31 @@ function defaultPluggyBackendBaseUrl(): string {
     return `${window.location.protocol}//${window.location.hostname}:3000`;
   }
   return window.location.origin;
+}
+
+function resolveBackendCandidateBaseUrls(configuredBaseUrl: string): string[] {
+  const candidateBaseUrls = [configuredBaseUrl];
+
+  if (
+    typeof window !== "undefined" &&
+    window.location.origin &&
+    window.location.origin !== configuredBaseUrl
+  ) {
+    candidateBaseUrls.push(window.location.origin);
+  }
+
+  if (isLocalBrowserHost() && configuredBaseUrl !== "http://localhost:3000") {
+    candidateBaseUrls.push("http://localhost:3000");
+  }
+
+  return [...new Set(candidateBaseUrls)];
+}
+
+function isTokenExpiring(expiresAt: string | null): boolean {
+  if (!expiresAt) return true;
+  const expiresAtMs = new Date(expiresAt).getTime();
+  if (!Number.isFinite(expiresAtMs)) return true;
+  return expiresAtMs - Date.now() <= 60_000;
 }
 
 function resolveTheme(
@@ -665,7 +716,13 @@ function addExpenseToDb(db: Database, input: ExpenseInput): Database {
   return {
     ...db,
     expenses: [...db.expenses, expense],
-    installments: [...db.installments, ...buildInstallments(expense)],
+    installments: [
+      ...db.installments,
+      ...buildInstallments(
+        expense,
+        expense.card_id ? (db.cards.find((item) => item.id === expense.card_id) ?? null) : null,
+      ),
+    ],
   };
 }
 
@@ -776,6 +833,17 @@ function MainApp() {
   );
   const [authEmailDraft, setAuthEmailDraft] = useState("");
   const [authPasswordDraft, setAuthPasswordDraft] = useState("");
+  const [authMode, setAuthMode] = useState<AuthMode>("login");
+  const [authBusy, setAuthBusy] = useState(false);
+  const loadPluggyProxyConfigStatusEvent = useEffectEvent(() => {
+    void loadPluggyProxyConfigStatus();
+  });
+  const loadPluggyConnectionsEvent = useEffectEvent(() => {
+    void loadPluggyConnections();
+  });
+  const restoreSessionEvent = useEffectEvent(() => {
+    void restoreSession();
+  });
 
   useEffect(() => {
     let active = true;
@@ -807,17 +875,23 @@ function MainApp() {
 
   useEffect(() => {
     if (!state.hydrated || Platform.OS !== "web") return;
-    void loadPluggyProxyConfigStatus();
-  }, [state.hydrated, state.db.settings.pluggy.proxy_url]);
+    loadPluggyProxyConfigStatusEvent();
+  }, [loadPluggyProxyConfigStatusEvent, state.hydrated, state.db.settings.pluggy.proxy_url]);
 
   useEffect(() => {
     if (!state.hydrated || Platform.OS !== "web") return;
-    if (!state.db.settings.auth.email) {
+    if (!state.db.settings.auth.session_active || !state.db.settings.auth.email) {
       setPluggyConnections([]);
       return;
     }
-    void loadPluggyConnections();
-  }, [state.hydrated, state.db.settings.auth.email, state.db.settings.pluggy.proxy_url]);
+    loadPluggyConnectionsEvent();
+  }, [
+    loadPluggyConnectionsEvent,
+    state.hydrated,
+    state.db.settings.auth.email,
+    state.db.settings.auth.session_active,
+    state.db.settings.pluggy.proxy_url,
+  ]);
 
   useEffect(() => {
     setExpenseDraft((current) =>
@@ -835,6 +909,17 @@ function MainApp() {
       setAuthEmailDraft(state.db.settings.auth.email);
     }
   }, [state.db.settings.auth.email]);
+
+  useEffect(() => {
+    if (!state.hydrated || !state.db.settings.auth.session_active) return;
+
+    restoreSessionEvent();
+  }, [
+    restoreSessionEvent,
+    state.hydrated,
+    state.db.settings.auth.session_active,
+    state.db.settings.auth.refresh_token,
+  ]);
 
   const monthEntries = useMemo(
     () =>
@@ -885,13 +970,12 @@ function MainApp() {
     (sum, item) => sum + (item.deduct_from_income ? item.amount : 0),
     0,
   );
-  const monthlyIncome = monthlyBaseIncome + monthlyIncomeExtras.reduce((sum, item) => sum + item.amount, 0);
+  const monthlyIncome =
+    monthlyBaseIncome + monthlyIncomeExtras.reduce((sum, item) => sum + item.amount, 0);
   const theme = resolveTheme(state.db.settings.theme, systemTheme);
   const colors = theme === "dark" ? darkColors : lightColors;
   const pluggySettings = state.db.settings.pluggy;
   const authSettings = state.db.settings.auth;
-  const hasAccess = Boolean(authSettings.email && authSettings.password);
-  const authMode: AuthMode = hasAccess ? "login" : "register";
 
   const primaryActionLabel =
     tab === "cards"
@@ -925,98 +1009,69 @@ function MainApp() {
     }));
   }
 
-  function handleAuthSubmit() {
-    const email = authEmailDraft.trim().toLowerCase();
-    const password = authPasswordDraft.trim();
-
-    if (!email || !password) {
-      notify("Login", "Informe e-mail e senha.");
-      return;
-    }
-
-    if (authMode === "register") {
-      updateDb((db) => ({
-        ...db,
-        settings: {
-          ...db.settings,
-          auth: {
-            email,
-            password,
-            session_active: true,
-          },
-        },
-      }));
-      setAuthPasswordDraft("");
-      return;
-    }
-
-    if (email !== authSettings.email || password !== authSettings.password) {
-      notify("Login", "E-mail ou senha invalidos.");
-      return;
-    }
-
+  function saveAuthSession(payload: AuthApiSessionPayload) {
     updateDb((db) => ({
       ...db,
       settings: {
         ...db.settings,
         auth: {
-          ...db.settings.auth,
+          user_id: payload.usuario.id,
+          email: payload.usuario.email?.trim().toLowerCase() ?? null,
+          access_token: payload.sessao.accessToken,
+          refresh_token: payload.sessao.refreshToken,
+          expires_at: payload.sessao.expiresAt,
           session_active: true,
         },
       },
     }));
-    setAuthPasswordDraft("");
   }
 
-  function handleLogout() {
+  function saveAuthIdentity(payload: AuthApiMePayload["usuario"]) {
     updateDb((db) => ({
       ...db,
       settings: {
         ...db.settings,
         auth: {
           ...db.settings.auth,
+          user_id: payload.id,
+          email: payload.email?.trim().toLowerCase() ?? db.settings.auth.email,
+          session_active: true,
+        },
+      },
+    }));
+  }
+
+  function clearAuthSession() {
+    updateDb((db) => ({
+      ...db,
+      settings: {
+        ...db.settings,
+        auth: {
+          user_id: null,
+          email: db.settings.auth.email,
+          access_token: null,
+          refresh_token: null,
+          expires_at: null,
           session_active: false,
         },
       },
     }));
-    setAuthEmailDraft(authSettings.email ?? "");
-    setAuthPasswordDraft("");
-    setScreen("home");
-    setTab("home");
   }
 
-  async function requestPluggyApi<T>(
+  async function requestBackendApi<T>(
     path: string,
     options?: {
       method?: "GET" | "POST";
       body?: Record<string, unknown>;
+      accessToken?: string | null;
     },
   ) {
     const configuredBaseUrl = (
       state.db.settings.pluggy.proxy_url || defaultPluggyBackendBaseUrl()
     ).replace(/\/$/, "");
-    const candidateBaseUrls = [configuredBaseUrl];
-
-    if (
-      typeof window !== "undefined" &&
-      window.location.origin &&
-      window.location.origin !== configuredBaseUrl
-    ) {
-      candidateBaseUrls.push(window.location.origin);
-    }
-
-    if (isLocalBrowserHost() && configuredBaseUrl !== "http://localhost:3000") {
-      candidateBaseUrls.push("http://localhost:3000");
-    }
-
-    let lastError: Error | null = null;
+    const candidateBaseUrls = resolveBackendCandidateBaseUrls(configuredBaseUrl);
     const method = options?.method ?? "POST";
-    const userEmail = state.db.settings.auth.email?.trim().toLowerCase() || null;
-    const requiresUserEmail = path !== "/api/pluggy/config/status" && path !== "/api/pluggy/webhook/ensure";
-
-    if (requiresUserEmail && !userEmail) {
-      throw new Error("Faca login no app antes de usar a integracao Pluggy.");
-    }
+    let lastError: Error | null = null;
 
     for (const baseUrl of candidateBaseUrls) {
       try {
@@ -1024,8 +1079,8 @@ function MainApp() {
           "Content-Type": "application/json",
         };
 
-        if (userEmail) {
-          headers["X-User-Email"] = userEmail;
+        if (options?.accessToken) {
+          headers.Authorization = `Bearer ${options.accessToken}`;
         }
 
         const response = await fetch(`${baseUrl}${path}`, {
@@ -1040,28 +1095,140 @@ function MainApp() {
           erro?: string;
         };
         if (!response.ok || payload.error || payload.erro) {
-          throw new Error(payload.error || payload.erro || `Erro Pluggy ${response.status}`);
+          throw new Error(payload.error || payload.erro || `Erro ${response.status}`);
         }
         return (payload.dados ?? payload) as T;
       } catch (error) {
-        lastError =
-          error instanceof Error ? error : new Error("Falha ao conectar no backend Pluggy");
+        lastError = error instanceof Error ? error : new Error("Falha ao conectar no backend");
       }
     }
 
     throw new Error(
       lastError?.message === "Failed to fetch"
-        ? "Backend Pluggy offline. Inicie o backend em `http://localhost:3000` ou publique `/api/pluggy` no mesmo dominio do app."
-        : (lastError?.message ?? "Falha ao conectar no backend Pluggy"),
+        ? "Backend offline. Inicie backend em `http://localhost:3000` ou publique API no mesmo dominio do app."
+        : (lastError?.message ?? "Falha ao conectar no backend"),
     );
+  }
+
+  async function renovarSessao(refreshToken = state.db.settings.auth.refresh_token) {
+    if (!refreshToken) {
+      throw new Error("Sessao expirada. Entre novamente.");
+    }
+
+    const payload = await requestBackendApi<AuthApiSessionPayload>("/api/auth/refresh", {
+      method: "POST",
+      body: { refreshToken },
+    });
+    saveAuthSession(payload);
+    return payload;
+  }
+
+  async function obterTokenAcessoValido() {
+    if (!authSettings.session_active) {
+      throw new Error("Faca login no app antes de continuar.");
+    }
+
+    if (authSettings.access_token && !isTokenExpiring(authSettings.expires_at)) {
+      return authSettings.access_token;
+    }
+
+    const payload = await renovarSessao(authSettings.refresh_token);
+    return payload.sessao.accessToken;
+  }
+
+  async function restoreSession() {
+    try {
+      setAuthBusy(true);
+      const accessToken = await obterTokenAcessoValido();
+      const payload = await requestBackendApi<AuthApiMePayload>("/api/auth/me", {
+        method: "GET",
+        accessToken,
+      });
+      saveAuthIdentity(payload.usuario);
+    } catch {
+      clearAuthSession();
+      setPluggyConnections([]);
+    } finally {
+      setAuthBusy(false);
+    }
+  }
+
+  async function handleAuthSubmit() {
+    const email = authEmailDraft.trim().toLowerCase();
+    const password = authPasswordDraft.trim();
+
+    if (!email || !password) {
+      notify("Login", "Informe e-mail e senha.");
+      return;
+    }
+
+    try {
+      setAuthBusy(true);
+      const payload = await requestBackendApi<AuthApiSessionPayload>(
+        authMode === "register" ? "/api/auth/register" : "/api/auth/login",
+        {
+          method: "POST",
+          body: { email, password },
+        },
+      );
+      saveAuthSession(payload);
+      setAuthMode("login");
+      setAuthPasswordDraft("");
+    } catch (error) {
+      notify("Login", error instanceof Error ? error.message : "Falha ao autenticar.");
+    } finally {
+      setAuthBusy(false);
+    }
+  }
+
+  async function handleLogout() {
+    const tokenAcesso = authSettings.access_token;
+
+    try {
+      if (tokenAcesso) {
+        await requestBackendApi("/api/auth/logout", {
+          method: "POST",
+          accessToken: tokenAcesso,
+        });
+      }
+    } catch {
+      /* logout remoto eh melhor esforço */
+    }
+
+    clearAuthSession();
+    setAuthEmailDraft(authSettings.email ?? "");
+    setAuthPasswordDraft("");
+    setAuthMode("login");
+    setPluggyConnections([]);
+    setScreen("home");
+    setTab("home");
+  }
+
+  async function requestPluggyApi<T>(
+    path: string,
+    options?: {
+      method?: "GET" | "POST";
+      body?: Record<string, unknown>;
+    },
+  ) {
+    const method = options?.method ?? "POST";
+    const requiresUserEmail =
+      path !== "/api/pluggy/config/status" && path !== "/api/pluggy/webhook/ensure";
+    const accessToken = requiresUserEmail ? await obterTokenAcessoValido() : null;
+
+    return requestBackendApi<T>(path, {
+      method,
+      body: options?.body,
+      accessToken,
+    });
   }
 
   async function loadPluggyProxyConfigStatus() {
     try {
-      const payload = await requestPluggyApi<PluggyProxyConfigStatus>(
-        "/api/pluggy/config/status",
-        { method: "POST", body: {} },
-      );
+      const payload = await requestPluggyApi<PluggyProxyConfigStatus>("/api/pluggy/config/status", {
+        method: "POST",
+        body: {},
+      });
       setPluggyConfigStatus(payload);
     } catch {
       setPluggyConfigStatus({ configured: false, clientIdMasked: null });
@@ -1070,10 +1237,10 @@ function MainApp() {
 
   async function loadPluggyConnections() {
     try {
-      const payload = await requestPluggyApi<{ usuarioId: string; conexoes: PluggyPersistedConnectionSummary[] }>(
-        "/api/pluggy/conexoes",
-        { method: "GET" },
-      );
+      const payload = await requestPluggyApi<{
+        usuarioId: string;
+        conexoes: PluggyPersistedConnectionSummary[];
+      }>("/api/pluggy/conexoes", { method: "GET" });
       setPluggyConnections(payload.conexoes ?? []);
     } catch {
       setPluggyConnections([]);
@@ -1111,12 +1278,13 @@ function MainApp() {
     try {
       setPluggyBusy(true);
       await loadPluggyWidget();
+      const shouldAvoidDuplicates = Boolean(itemId || pluggyConnections.length > 0);
       const token = await requestPluggyApi<{ accessToken: string }>("/api/pluggy/connect-token", {
         method: "POST",
         body: {
           itemId,
           options: {
-            avoidDuplicates: true,
+            ...(shouldAvoidDuplicates ? { avoidDuplicates: true } : {}),
           },
         },
       });
@@ -1580,7 +1748,9 @@ function MainApp() {
         barStyle={theme === "dark" ? "light-content" : "dark-content"}
         backgroundColor={theme === "dark" ? "#050505" : colors.background}
       />
-      <View style={[styles.container, { backgroundColor: colors.background }, iosPwaContainerStyle]}>
+      <View
+        style={[styles.container, { backgroundColor: colors.background }, iosPwaContainerStyle]}
+      >
         {!state.hydrated ? (
           <View style={styles.centered}>
             <Text style={styles.loadingText}>Carregando dados...</Text>
@@ -1589,8 +1759,10 @@ function MainApp() {
           <AuthScreen
             colors={colors}
             mode={authMode}
+            busy={authBusy}
             email={authEmailDraft}
             password={authPasswordDraft}
+            onModeChange={setAuthMode}
             onEmailChange={setAuthEmailDraft}
             onPasswordChange={setAuthPasswordDraft}
             onSubmit={handleAuthSubmit}
@@ -1627,85 +1799,85 @@ function MainApp() {
                 >
                   <View style={[styles.tabRowInner, iosPwaTabRowInnerStyle]}>
                     {(
-                    [
-                      ["home", "Inicio", "⌂"],
-                    ["expenses", "Gastos", "$"],
-                    ["cards", "Cartoes", "="],
-                    ["categories", "Categorias", "⌗"],
-                    ["savings", "Guardar", "v"],
-                  ] as const
-                ).map(([value, label]) => (
-                  <TouchableOpacity
-                    key={value}
-                    style={styles.tabItem}
-                    onPress={() => {
-                      setTab(value);
-                      setScreen(value);
-                    }}
-                  >
-                    <View
-                      style={[
-                        styles.tabPill,
-                        tab === value ? styles.tabPillActive : styles.tabPillInactive,
-                        tab === value
-                          ? {
-                              backgroundColor: "#050505",
-                            }
-                          : null,
-                      ]}
-                    >
-                      {tab === value ? <View style={styles.tabPillGlow} /> : null}
-                      <View
-                        style={[
-                          styles.tabIconWrap,
-                          tab === value ? styles.tabIconWrapActive : styles.tabIconWrapInactive,
-                        ]}
+                      [
+                        ["home", "Inicio", "⌂"],
+                        ["expenses", "Gastos", "$"],
+                        ["cards", "Cartoes", "="],
+                        ["categories", "Categorias", "⌗"],
+                        ["savings", "Guardar", "v"],
+                      ] as const
+                    ).map(([value, label]) => (
+                      <TouchableOpacity
+                        key={value}
+                        style={styles.tabItem}
+                        onPress={() => {
+                          setTab(value);
+                          setScreen(value);
+                        }}
                       >
-                        {value === "home" ? (
-                          <Home
-                            size={tab === value ? 24 : 20}
-                            color={tab === value ? "#ffffff" : colors.textMuted}
-                          />
-                        ) : null}
-                        {value === "expenses" ? (
-                          <Plus
-                            size={tab === value ? 24 : 20}
-                            color={tab === value ? "#ffffff" : colors.textMuted}
-                          />
-                        ) : null}
-                        {value === "cards" ? (
-                          <CreditCard
-                            size={tab === value ? 24 : 20}
-                            color={tab === value ? "#ffffff" : colors.textMuted}
-                          />
-                        ) : null}
-                        {value === "categories" ? (
-                          <Tag
-                            size={tab === value ? 24 : 20}
-                            color={tab === value ? "#ffffff" : colors.textMuted}
-                          />
-                        ) : null}
-                        {value === "savings" ? (
-                          <Download
-                            size={tab === value ? 24 : 20}
-                            color={tab === value ? "#ffffff" : colors.textMuted}
-                          />
-                        ) : null}
-                      </View>
-                      {tab === value ? null : (
-                        <Text
+                        <View
                           style={[
-                            styles.tabLabel,
-                            styles.tabLabelInactive,
-                            { color: colors.textMuted },
+                            styles.tabPill,
+                            tab === value ? styles.tabPillActive : styles.tabPillInactive,
+                            tab === value
+                              ? {
+                                  backgroundColor: "#050505",
+                                }
+                              : null,
                           ]}
                         >
-                          {label}
-                        </Text>
-                      )}
-                    </View>
-                  </TouchableOpacity>
-                ))}
+                          {tab === value ? <View style={styles.tabPillGlow} /> : null}
+                          <View
+                            style={[
+                              styles.tabIconWrap,
+                              tab === value ? styles.tabIconWrapActive : styles.tabIconWrapInactive,
+                            ]}
+                          >
+                            {value === "home" ? (
+                              <Home
+                                size={tab === value ? 24 : 20}
+                                color={tab === value ? "#ffffff" : colors.textMuted}
+                              />
+                            ) : null}
+                            {value === "expenses" ? (
+                              <Plus
+                                size={tab === value ? 24 : 20}
+                                color={tab === value ? "#ffffff" : colors.textMuted}
+                              />
+                            ) : null}
+                            {value === "cards" ? (
+                              <CreditCard
+                                size={tab === value ? 24 : 20}
+                                color={tab === value ? "#ffffff" : colors.textMuted}
+                              />
+                            ) : null}
+                            {value === "categories" ? (
+                              <Tag
+                                size={tab === value ? 24 : 20}
+                                color={tab === value ? "#ffffff" : colors.textMuted}
+                              />
+                            ) : null}
+                            {value === "savings" ? (
+                              <Download
+                                size={tab === value ? 24 : 20}
+                                color={tab === value ? "#ffffff" : colors.textMuted}
+                              />
+                            ) : null}
+                          </View>
+                          {tab === value ? null : (
+                            <Text
+                              style={[
+                                styles.tabLabel,
+                                styles.tabLabelInactive,
+                                { color: colors.textMuted },
+                              ]}
+                            >
+                              {label}
+                            </Text>
+                          )}
+                        </View>
+                      </TouchableOpacity>
+                    ))}
                   </View>
                 </View>
               </>
@@ -1780,9 +1952,9 @@ function MainApp() {
                       settings: {
                         ...db.settings,
                         monthly_savings_by_month: (() => {
-                          const nextEntries = (db.settings.monthly_savings_by_month[month] ?? []).filter(
-                            (item) => item.id !== entry.id,
-                          );
+                          const nextEntries = (
+                            db.settings.monthly_savings_by_month[month] ?? []
+                          ).filter((item) => item.id !== entry.id);
 
                           return nextEntries.length > 0
                             ? { ...db.settings.monthly_savings_by_month, [month]: nextEntries }
@@ -2705,9 +2877,14 @@ function SavingsTab({
         subtitle={`Total em ${monthLabel(month).split(" de ")[0]?.toLowerCase() ?? month}`}
       />
       <View
-        style={[styles.savingsSummaryCard, { backgroundColor: colors.card, borderColor: colors.borderSoft }]}
+        style={[
+          styles.savingsSummaryCard,
+          { backgroundColor: colors.card, borderColor: colors.borderSoft },
+        ]}
       >
-        <Text style={[styles.summaryTitle, { color: colors.textMuted }]}>Total guardado no mes</Text>
+        <Text style={[styles.summaryTitle, { color: colors.textMuted }]}>
+          Total guardado no mes
+        </Text>
         <Text style={[styles.savingsSummaryValue, { color: colors.textStrong }]}>
           {formatCurrency(total)}
         </Text>
@@ -2729,7 +2906,9 @@ function SavingsTab({
           style={[styles.cardRow, { backgroundColor: colors.card, borderColor: colors.borderSoft }]}
         >
           <View style={styles.cardRowContent}>
-            <Text style={[styles.cardTitle, { color: colors.textStrong }]}>{entry.description}</Text>
+            <Text style={[styles.cardTitle, { color: colors.textStrong }]}>
+              {entry.description}
+            </Text>
             <Text style={[styles.cardMeta, { color: colors.textMuted }]}>
               {formatDateBR(entry.created_at.slice(0, 10)) + " - " + formatCurrency(entry.amount)}
             </Text>
@@ -2754,16 +2933,20 @@ function SavingsTab({
 function AuthScreen({
   colors,
   mode,
+  busy,
   email,
   password,
+  onModeChange,
   onEmailChange,
   onPasswordChange,
   onSubmit,
 }: {
   colors: typeof lightColors;
   mode: AuthMode;
+  busy: boolean;
   email: string;
   password: string;
+  onModeChange: (mode: AuthMode) => void;
   onEmailChange: (value: string) => void;
   onPasswordChange: (value: string) => void;
   onSubmit: () => void;
@@ -2793,6 +2976,32 @@ function AuthScreen({
               ? "Crie seu acesso para guardar seus gastos com mais privacidade."
               : "Entre para acompanhar gastos, renda e conexões da sua conta."}
           </Text>
+        </View>
+        <View style={styles.authModeRow}>
+          <TouchableOpacity
+            style={[
+              styles.authModeButton,
+              {
+                backgroundColor: !isRegister ? authPrimary : "#111111",
+                borderColor: !isRegister ? authPrimary : authInputBorder,
+              },
+            ]}
+            onPress={() => onModeChange("login")}
+          >
+            <Text style={[styles.authModeButtonText, { color: "#ffffff" }]}>Entrar</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.authModeButton,
+              {
+                backgroundColor: isRegister ? authPrimary : "#111111",
+                borderColor: isRegister ? authPrimary : authInputBorder,
+              },
+            ]}
+            onPress={() => onModeChange("register")}
+          >
+            <Text style={[styles.authModeButtonText, { color: "#ffffff" }]}>Criar conta</Text>
+          </TouchableOpacity>
         </View>
         <View style={styles.authFormBlock}>
           <View style={styles.authField}>
@@ -2839,7 +3048,7 @@ function AuthScreen({
           <Text
             style={[styles.primaryButtonText, styles.authPrimaryButtonText, { color: "#ffffff" }]}
           >
-            {isRegister ? "Criar acesso" : "Acessar"}
+            {busy ? "Validando..." : isRegister ? "Criar acesso" : "Acessar"}
           </Text>
         </TouchableOpacity>
       </View>
@@ -3543,7 +3752,9 @@ function CategoryModal({
             </View>
             <View style={styles.colorPreviewRow}>
               <View style={[styles.colorPreviewDot, { backgroundColor: selectedColor }]} />
-              <Text style={[styles.colorPreviewText, { color: colors.textStrong }]}>{selectedColor}</Text>
+              <Text style={[styles.colorPreviewText, { color: colors.textStrong }]}>
+                {selectedColor}
+              </Text>
             </View>
           </View>
           <View style={styles.chipWrap}>
@@ -3637,11 +3848,11 @@ function IncomeModal({
         <Text style={[styles.fieldLabel, { color: colors.textStrong }]}>Rendas extras</Text>
         <TouchableOpacity
           style={[styles.chip, { backgroundColor: colors.card, borderColor: colors.borderSoft }]}
-          onPress={() =>
-            onExtraDraftsChange((current) => [...current, makeIncomeExtraDraft()])
-          }
+          onPress={() => onExtraDraftsChange((current) => [...current, makeIncomeExtraDraft()])}
         >
-          <Text style={[styles.chipText, { color: colors.textStrong }]}>+ Adicionar renda extra</Text>
+          <Text style={[styles.chipText, { color: colors.textStrong }]}>
+            + Adicionar renda extra
+          </Text>
         </TouchableOpacity>
       </View>
       <View style={styles.incomeExtraList}>
@@ -3693,7 +3904,9 @@ function IncomeModal({
               onChangeText={(value) =>
                 onExtraDraftsChange((current) =>
                   current.map((entry) =>
-                    entry.id === item.id ? { ...entry, amountText: maskCurrencyInput(value) } : entry,
+                    entry.id === item.id
+                      ? { ...entry, amountText: maskCurrencyInput(value) }
+                      : entry,
                   ),
                 )
               }
@@ -3701,7 +3914,12 @@ function IncomeModal({
           </View>
         ))}
       </View>
-      <View style={[styles.incomeTotalCard, { backgroundColor: colors.card, borderColor: colors.borderSoft }]}>
+      <View
+        style={[
+          styles.incomeTotalCard,
+          { backgroundColor: colors.card, borderColor: colors.borderSoft },
+        ]}
+      >
         <Text style={[styles.sectionSubtitle, { color: colors.textMuted }]}>
           Total de renda em {monthLabel(month).split(" de ")[0]?.toLowerCase() ?? month}
         </Text>
@@ -4337,6 +4555,8 @@ function GroupSection({
   title: string;
   groups: ReturnType<typeof totalsByCategory>;
 }) {
+  const maxTotal = groups.reduce((highest, item) => Math.max(highest, item.total), 0);
+
   return (
     <View
       style={[
@@ -4357,7 +4577,15 @@ function GroupSection({
               </Text>
             </View>
             <View style={[styles.groupBarTrack, { backgroundColor: colors.borderSoft }]}>
-              <View style={[styles.groupBarFill, { width: "100%", backgroundColor: item.color }]} />
+              <View
+                style={[
+                  styles.groupBarFill,
+                  {
+                    width: `${maxTotal > 0 ? Math.max((item.total / maxTotal) * 100, 6) : 0}%`,
+                    backgroundColor: item.color,
+                  },
+                ]}
+              />
             </View>
           </View>
         ))
@@ -4485,7 +4713,13 @@ function Chip({
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, width: "100%", height: "100%", minHeight: "100%", backgroundColor: "#f6f4ea" },
+  safeArea: {
+    flex: 1,
+    width: "100%",
+    height: "100%",
+    minHeight: "100%",
+    backgroundColor: "#f6f4ea",
+  },
   container: {
     flex: 1,
     width: "100%",
@@ -4690,6 +4924,25 @@ const styles = StyleSheet.create({
     paddingHorizontal: scale(18),
     maxWidth: scale(236),
     marginTop: scale(-2),
+  },
+  authModeRow: {
+    flexDirection: "row",
+    gap: scale(8),
+    paddingHorizontal: scale(4),
+    marginTop: scale(2),
+  },
+  authModeButton: {
+    flex: 1,
+    minHeight: scale(40),
+    borderRadius: scale(14),
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  authModeButtonText: {
+    fontSize: scale(12),
+    fontWeight: "700",
+    letterSpacing: 0.2,
   },
   authFormBlock: {
     gap: scale(8),

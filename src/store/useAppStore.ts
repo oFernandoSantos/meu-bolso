@@ -53,7 +53,8 @@ export const useAppStore = create<AppState>()((set, get) => ({
       created_at: timestamp,
       updated_at: timestamp,
     };
-    const installments = buildInstallments(expense);
+    const card = expense.card_id ? get().cards.find((item) => item.id === expense.card_id) ?? null : null;
+    const installments = buildInstallments(expense, card);
     set((state) => ({
       expenses: [...state.expenses, expense],
       installments: [...state.installments, ...installments],
@@ -70,7 +71,8 @@ export const useAppStore = create<AppState>()((set, get) => ({
       ...normalized,
       updated_at: new Date().toISOString(),
     };
-    const installments: Installment[] = buildInstallments(updated);
+    const card = updated.card_id ? get().cards.find((item) => item.id === updated.card_id) ?? null : null;
+    const installments: Installment[] = buildInstallments(updated, card);
     set((state) => ({
       expenses: state.expenses.map((expense) => (expense.id === id ? updated : expense)),
       installments: [

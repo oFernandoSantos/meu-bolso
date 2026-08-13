@@ -84,7 +84,7 @@ const notebook = makeExpense({
   installment_count: 12,
 });
 
-const pix = makeExpense({ id: "e3", description: "Almoço", total_amount: 3000 });
+const pix = makeExpense({ id: "e3", description: "Almoco", total_amount: 3000 });
 const dinheiro = makeExpense({
   id: "e4",
   description: "Feira",
@@ -93,61 +93,113 @@ const dinheiro = makeExpense({
 });
 
 const expenses = [mercado, notebook, pix, dinheiro];
-const installments = expenses.flatMap((expense) => buildInstallments(expense));
+const installments = expenses.flatMap((expense) =>
+  buildInstallments(
+    expense,
+    expense.card_id ? cards.find((card) => card.id === expense.card_id) ?? null : null,
+  ),
+);
 
 const entriesOf = (month: string) =>
   entriesForMonth(month, expenses, installments, cards, categories);
 
 describe("parcelas", () => {
-  it("cria uma parcela por mês no crédito", () => {
-    const parcels = buildInstallments(notebook);
+  it("cria uma parcela por mes no credito usando fechamento do cartao", () => {
+    const parcels = buildInstallments(notebook, cards[0]!);
     expect(parcels).toHaveLength(12);
-    expect(parcels[0]!.competence_month).toBe("2026-07");
-    expect(parcels[5]!.competence_month).toBe("2026-12");
-    expect(parcels[11]!.competence_month).toBe("2027-06");
+    expect(parcels[0]!.competence_month).toBe("2026-08");
+    expect(parcels[5]!.competence_month).toBe("2027-01");
+    expect(parcels[11]!.competence_month).toBe("2027-07");
     expect(parcels.reduce((sum, item) => sum + item.amount, 0)).toBe(240000);
   });
 
-  it("não parcela débito, pix, dinheiro ou outro", () => {
-    expect(buildInstallments(mercado)).toHaveLength(1);
+  it("nao parcela debito, pix, dinheiro ou outro", () => {
+    expect(buildInstallments(mercado, cards[0]!)).toHaveLength(1);
     expect(normalizeExpenseInput({ ...pix, installment_count: 6 }).installment_count).toBe(1);
     expect(normalizeExpenseInput({ ...pix, card_id: "card-nubank" }).card_id).toBeNull();
+  });
+
+  it("mantem compra ate o dia de fechamento no vencimento esperado", () => {
+    const invoiceCycleExpense = makeExpense({
+      id: "e6",
+      description: "Curso",
+      total_amount: 10000,
+      payment_method: "credit",
+      card_id: "card-nubank",
+      expense_date: "2026-08-19",
+    });
+
+    const parcels = buildInstallments(invoiceCycleExpense, cards[0]!);
+    expect(parcels[0]!.competence_month).toBe("2026-08");
   });
 });
 
 describe("totais mensais", () => {
-  it("soma o total do mês", () => {
-    expect(sumEntries(entriesOf("2026-07"))).toBe(23590 + 20000 + 3000 + 5000);
+  it("soma o total do mes conforme competencia da fatura", () => {
+    expect(sumEntries(entriesOf("2026-07"))).toBe(23590 + 3000 + 5000);
+    expect(sumEntries(entriesOf("2026-08"))).toBe(20000);
   });
 
   it("soma por forma de pagamento", () => {
-    const totals = totalsByPaymentMethod(entriesOf("2026-07"));
-    expect(totals.debit).toBe(23590);
-    expect(totals.credit).toBe(20000);
-    expect(totals.pix).toBe(3000);
-    expect(totals.cash).toBe(5000);
-    expect(totals.other).toBe(0);
+    const julyTotals = totalsByPaymentMethod(entriesOf("2026-07"));
+    const augustTotals = totalsByPaymentMethod(entriesOf("2026-08"));
+
+    expect(julyTotals.debit).toBe(23590);
+    expect(julyTotals.credit).toBe(0);
+    expect(julyTotals.pix).toBe(3000);
+    expect(julyTotals.cash).toBe(5000);
+    expect(julyTotals.other).toBe(0);
+
+    expect(augustTotals.credit).toBe(20000);
   });
 
   it("soma por categoria", () => {
-    const totals = totalsByCategory(entriesOf("2026-07"));
-    expect(totals.find((item) => item.label === "Mercado")!.total).toBe(23590 + 3000 + 5000);
-    expect(totals.find((item) => item.label === "Compras")!.total).toBe(20000);
+    const julyTotals = totalsByCategory(entriesOf("2026-07"));
+    const augustTotals = totalsByCategory(entriesOf("2026-08"));
+
+    expect(julyTotals.find((item) => item.label === "Mercado")!.total).toBe(23590 + 3000 + 5000);
+    expect(julyTotals.find((item) => item.label === "Compras")).toBeUndefined();
+    expect(augustTotals.find((item) => item.label === "Compras")!.total).toBe(20000);
   });
 
-  it("soma por cartão", () => {
-    const totals = totalsByCard(entriesOf("2026-07"));
-    expect(totals).toHaveLength(1);
-    expect(totals[0]!.total).toBe(23590 + 20000);
-    expect(cardMonthTotal("card-nubank", entriesOf("2026-07"), true)).toBe(20000);
+  it("soma por cartao", () => {
+    const julyTotals = totalsByCard(entriesOf("2026-07"));
+    expect(julyTotals).toHaveLength(1);
+    expect(julyTotals[0]!.total).toBe(23590);
+    expect(cardMonthTotal("card-nubank", entriesOf("2026-07"), true)).toBe(0);
+    expect(cardMonthTotal("card-nubank", entriesOf("2026-08"), true)).toBe(20000);
+  });
+
+  it("nao soma pagamento de fatura como gasto do cartao", () => {
+    const invoicePayment = makeExpense({
+      id: "e5",
+      description: "Pagamento fatura",
+      total_amount: 120000,
+      payment_method: "debit",
+      card_id: "card-nubank",
+      category_id: "cat-compras",
+    });
+
+    const mixedEntries = entriesForMonth(
+      "2026-07",
+      [...expenses, invoicePayment],
+      [...installments, ...buildInstallments(invoicePayment, cards[0]!)],
+      cards,
+      categories,
+    );
+
+    expect(sumEntries(mixedEntries)).toBe(23590 + 3000 + 5000);
+    expect(totalsByCategory(mixedEntries).find((item) => item.label === "Compras")).toBeUndefined();
+    expect(cardMonthTotal("card-nubank", mixedEntries)).toBe(23590);
+    expect(cardMonthTotal("card-nubank", mixedEntries, true)).toBe(0);
   });
 
   it("muda entre meses mantendo as parcelas certas", () => {
     const agosto = entriesOf("2026-08");
     expect(agosto).toHaveLength(1);
     expect(agosto[0]!.expense.description).toBe("Notebook");
-    expect(agosto[0]!.installment.installment_number).toBe(2);
+    expect(agosto[0]!.installment.installment_number).toBe(1);
     expect(sumEntries(agosto)).toBe(20000);
-    expect(entriesOf("2027-07")).toHaveLength(0);
+    expect(entriesOf("2027-08")).toHaveLength(0);
   });
 });

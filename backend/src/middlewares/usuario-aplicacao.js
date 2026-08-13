@@ -8,15 +8,13 @@ function normalizarEmail(email) {
 
 export function identificarUsuarioAplicacao(request, _response, next) {
   try {
-    const email = normalizarEmail(request.headers["x-user-email"]);
+    const email = normalizarEmail(request.usuario?.email);
     if (!email) {
-      throw new HttpError(
-        401,
-        "Informe o e-mail do usuario em X-User-Email para operar a integracao Pluggy.",
-      );
+      throw new HttpError(403, "Conta autenticada sem e-mail valido para operar integracao.");
     }
 
     request.usuarioAplicacao = {
+      id: request.usuario.id,
       email,
     };
 

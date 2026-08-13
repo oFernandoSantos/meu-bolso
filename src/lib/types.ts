@@ -13,8 +13,11 @@ export interface PluggySettings {
 }
 
 export interface AuthSettings {
+  user_id: string | null;
   email: string | null;
-  password: string | null;
+  access_token: string | null;
+  refresh_token: string | null;
+  expires_at: string | null;
   session_active: boolean;
 }
 

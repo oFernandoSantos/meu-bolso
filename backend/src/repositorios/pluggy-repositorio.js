@@ -171,9 +171,12 @@ async function salvarIntegracaoStatus(client, integracaoId, status, ultimoErro =
   await client.query(
     `
       update public.integracoes_bancarias
-      set status = $2,
+      set status = $2::varchar,
           ultimo_erro = $3,
-          ultima_sincronizacao_em = case when $2 = 'sincronizada' then now() else ultima_sincronizacao_em end,
+          ultima_sincronizacao_em = case
+            when $2::text = 'sincronizada' then now()
+            else ultima_sincronizacao_em
+          end,
           atualizado_em = now()
       where id = $1
     `,

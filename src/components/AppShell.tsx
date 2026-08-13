@@ -15,7 +15,7 @@ export function TabBar() {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
 
   return (
-    <nav className="fixed bottom-0 left-1/2 z-40 w-full max-w-[30rem] -translate-x-1/2 border-t border-border bg-card/95 pb-[env(safe-area-inset-bottom)] backdrop-blur">
+    <nav className="fixed inset-x-0 bottom-0 z-40 w-full border-t border-border bg-card/95 pb-[max(env(safe-area-inset-bottom),0.75rem)] backdrop-blur">
       <ul className="grid grid-cols-4">
         {tabs.map((tab) => {
           const active = tab.exact ? pathname === "/" : pathname.startsWith(tab.to);
@@ -109,7 +109,7 @@ export function AppShell({
           </div>
         </div>
       </header>
-      <main className="flex-1 overflow-y-auto px-5 py-5 pb-[calc(7rem+env(safe-area-inset-bottom))]">
+      <main className="min-h-0 flex-1 overflow-y-auto px-5 py-5 pb-[calc(7.5rem+env(safe-area-inset-bottom))]">
         {children}
       </main>
       {withTabs ? <TabBar /> : null}

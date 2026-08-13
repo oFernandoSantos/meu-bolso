@@ -4,6 +4,15 @@ import type { Card, Category, Database, Expense, PaymentMethod } from "./types";
 
 const IMPORT_NOTE_PREFIX = "[pluggy:";
 const IMPORT_CATEGORY_COLORS = ["#f97316", "#16a34a", "#0ea5e9", "#8b5cf6", "#ef4444", "#eab308"];
+const INVOICE_PAYMENT_PATTERNS = [
+  "pagamento fatura",
+  "pagamento de fatura",
+  "pgto fatura",
+  "fatura cartao",
+  "cartao de credito",
+  "credit card payment",
+  "payment invoice",
+];
 
 export type PluggyItemSummary = {
   id: string;
@@ -78,6 +87,19 @@ function transactionAlreadyImported(expenses: Expense[], transactionId: string):
   return expenses.some((expense) =>
     expense.notes?.includes(`${IMPORT_NOTE_PREFIX}${transactionId}]`),
   );
+}
+
+function removeImportedTransaction(db: Database, transactionId: string): Database {
+  const expense = db.expenses.find((item) =>
+    item.notes?.includes(`${IMPORT_NOTE_PREFIX}${transactionId}]`),
+  );
+  if (!expense) return db;
+
+  return {
+    ...db,
+    expenses: db.expenses.filter((item) => item.id !== expense.id),
+    installments: db.installments.filter((item) => item.expense_id !== expense.id),
+  };
 }
 
 function cardLabel(account: PluggyAccount): string {
@@ -164,6 +186,18 @@ function shouldImportTransaction(account: PluggyAccount, transaction: PluggyTran
   return amount < 0;
 }
 
+function shouldIgnoreAsInvoicePayment(account: PluggyAccount, transaction: PluggyTransaction): boolean {
+  if (account.type === "CREDIT") return false;
+
+  const text = normalizeText(
+    [transaction.description, transaction.descriptionRaw, transaction.category]
+      .filter(Boolean)
+      .join(" "),
+  );
+
+  return INVOICE_PAYMENT_PATTERNS.some((pattern) => text.includes(pattern));
+}
+
 function appendExpense(
   db: Database,
   transaction: PluggyTransaction,
@@ -228,6 +262,11 @@ export function mergePluggySync(db: Database, payload: PluggySyncPayload): Plugg
     }
 
     for (const transaction of transactions) {
+      if (shouldIgnoreAsInvoicePayment(account, transaction)) {
+        nextDb = removeImportedTransaction(nextDb, transaction.id);
+        continue;
+      }
+
       if (!shouldImportTransaction(account, transaction)) continue;
       if (transactionAlreadyImported(nextDb.expenses, transaction.id)) continue;
 

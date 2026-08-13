@@ -74,8 +74,11 @@ export function emptyDatabase(): Database {
         proxy_url: null,
       },
       auth: {
+        user_id: null,
         email: null,
-        password: null,
+        access_token: null,
+        refresh_token: null,
+        expires_at: null,
         session_active: false,
       },
       monthly_income_by_month: {},
@@ -335,8 +338,11 @@ export function normalizeDatabase(input: unknown): Database {
           : base.settings.pluggy,
         auth: isObject(input["settings"]["auth"])
           ? {
+              user_id: asNullableString(input["settings"]["auth"]["user_id"]),
               email: asNullableString(input["settings"]["auth"]["email"]),
-              password: asNullableString(input["settings"]["auth"]["password"]),
+              access_token: asNullableString(input["settings"]["auth"]["access_token"]),
+              refresh_token: asNullableString(input["settings"]["auth"]["refresh_token"]),
+              expires_at: asNullableString(input["settings"]["auth"]["expires_at"]),
               session_active: asBoolean(input["settings"]["auth"]["session_active"], false),
             }
           : base.settings.auth,

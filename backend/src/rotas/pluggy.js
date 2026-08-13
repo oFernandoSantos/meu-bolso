@@ -2,6 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { logger } from "../configuracoes/logger.js";
 import { HttpError } from "../erros/http-error.js";
+import { autenticar } from "../middlewares/autenticacao.js";
 import { identificarUsuarioAplicacao } from "../middlewares/usuario-aplicacao.js";
 import { rateLimitPluggy, rateLimitWebhook } from "../middlewares/seguranca-http.js";
 import {
@@ -88,6 +89,7 @@ router.post("/webhook", rateLimitWebhook, async (request, response, next) => {
 });
 
 router.use(rateLimitPluggy);
+router.use(autenticar);
 router.use(identificarUsuarioAplicacao);
 
 router.post("/config/save", (_request, _response) => {
