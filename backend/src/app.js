@@ -9,7 +9,7 @@ export function criarApp() {
   const app = express();
 
   // Easypanel/Nginx encaminha IP real via X-Forwarded-*; o Express precisa confiar no proxy.
-  app.set("trust proxy", 1);
+  app.set("trust proxy", true);
   aplicarSegurancaHttp(app);
   app.use(cookieParser());
   app.use(middlewareRequisicao);

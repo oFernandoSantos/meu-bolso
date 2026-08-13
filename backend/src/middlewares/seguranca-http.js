@@ -2,8 +2,22 @@ import compression from "compression";
 import cors from "cors";
 import express from "express";
 import helmet from "helmet";
-import rateLimit from "express-rate-limit";
+import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import { ambiente, origensPermitidas } from "../configuracoes/ambiente.js";
+
+function extrairIpReal(request) {
+  const forwardedFor = request.headers["x-forwarded-for"];
+  if (typeof forwardedFor === "string" && forwardedFor.trim()) {
+    return forwardedFor.split(",")[0]?.trim() || request.ip;
+  }
+
+  const realIp = request.headers["x-real-ip"];
+  if (typeof realIp === "string" && realIp.trim()) {
+    return realIp.trim();
+  }
+
+  return request.ip;
+}
 
 function criarRateLimit(windowMs, max) {
   return rateLimit({
@@ -11,6 +25,7 @@ function criarRateLimit(windowMs, max) {
     max,
     standardHeaders: true,
     legacyHeaders: false,
+    keyGenerator: (request) => ipKeyGenerator(extrairIpReal(request)),
     message: { erro: "Limite de requisicoes excedido. Tente novamente em instantes." },
   });
 }
