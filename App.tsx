@@ -219,7 +219,7 @@ type AuthApiMePayload = {
 
 type PluggyConnectProps = {
   connectToken: string;
-  itemId?: string;
+  updateItem?: string;
   selectedConnectorId?: number;
   onClose?: () => void;
   onError?: (error: { message?: string; data?: { item?: { id?: string } } }) => void;
@@ -1340,6 +1340,11 @@ function MainApp() {
     }
   }
 
+  function handlePrimaryPluggyConnect() {
+    const existingItemId = state.db.settings.pluggy.item_id ?? undefined;
+    void openPluggyConnect(existingItemId);
+  }
+
   async function syncPluggyData(itemIdOverride?: string) {
     const itemId = itemIdOverride || state.db.settings.pluggy.item_id;
     if (!itemId) {
@@ -2009,7 +2014,7 @@ function MainApp() {
                   pluggyConnections={pluggyConnections}
                   onPluggyBackendUrlChange={setPluggyBackendUrlDraft}
                   onSavePluggyBackendUrl={savePluggyBackendUrl}
-                  onPluggyConnect={() => openPluggyConnect()}
+                  onPluggyConnect={handlePrimaryPluggyConnect}
                   onPluggyResync={() => openPluggyConnect(pluggySettings.item_id ?? undefined)}
                   onPluggyImport={() => syncPluggyData()}
                   onExportBackup={exportBackup}
@@ -2099,7 +2104,7 @@ function MainApp() {
         {Platform.OS === "web" && pluggyComponent && pluggyConnectToken
           ? React.createElement(pluggyComponent, {
               connectToken: pluggyConnectToken,
-              ...(pluggyWidgetItemId ? { itemId: pluggyWidgetItemId } : {}),
+              ...(pluggyWidgetItemId ? { updateItem: pluggyWidgetItemId } : {}),
               ...(pluggySelectedConnectorId
                 ? { selectedConnectorId: pluggySelectedConnectorId }
                 : {}),
