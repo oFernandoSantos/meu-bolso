@@ -42,12 +42,23 @@ function criarRateLimitComExcecao(windowMs, max, skip) {
   });
 }
 
-export const rateLimitComum = criarRateLimitComExcecao(15 * 60 * 1000, 300, (request) =>
-  request.path.startsWith("/api/auth/"),
+function ignorarRateLimitComum(request) {
+  return (
+    request.path.startsWith("/api/auth/") ||
+    request.path === "/api/health" ||
+    request.path === "/api/pluggy/config/status" ||
+    request.path === "/api/pluggy/webhook/ensure"
+  );
+}
+
+export const rateLimitComum = criarRateLimitComExcecao(
+  15 * 60 * 1000,
+  1500,
+  ignorarRateLimitComum,
 );
 export const rateLimitAuthCritico = criarRateLimit(15 * 60 * 1000, 15);
 export const rateLimitSessao = criarRateLimit(15 * 60 * 1000, 120);
-export const rateLimitPluggy = criarRateLimit(15 * 60 * 1000, 30);
+export const rateLimitPluggy = criarRateLimit(15 * 60 * 1000, 120);
 export const rateLimitWebhook = criarRateLimit(5 * 60 * 1000, 120);
 
 export function aplicarSegurancaHttp(app) {
