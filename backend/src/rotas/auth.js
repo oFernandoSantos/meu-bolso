@@ -8,8 +8,8 @@ import {
   renovarSessao,
 } from "../controladores/auth-controlador.js";
 import { autenticar } from "../middlewares/autenticacao.js";
+import { rateLimitAuthCritico, rateLimitSessao } from "../middlewares/seguranca-http.js";
 import { validar } from "../middlewares/validacao.js";
-import { rateLimitAuth } from "../middlewares/seguranca-http.js";
 
 const router = Router();
 const credenciaisSchema = z.object({
@@ -20,11 +20,10 @@ const refreshSchema = z.object({
   refreshToken: z.string().min(1, "refreshToken obrigatorio."),
 });
 
-router.use(rateLimitAuth);
-router.post("/register", validar({ body: credenciaisSchema }), registrar);
-router.post("/login", validar({ body: credenciaisSchema }), iniciarSessao);
-router.post("/refresh", validar({ body: refreshSchema }), renovarSessao);
-router.get("/me", autenticar, obterSessaoAtual);
-router.post("/logout", autenticar, encerrarSessaoAtual);
+router.post("/register", rateLimitAuthCritico, validar({ body: credenciaisSchema }), registrar);
+router.post("/login", rateLimitAuthCritico, validar({ body: credenciaisSchema }), iniciarSessao);
+router.post("/refresh", rateLimitSessao, validar({ body: refreshSchema }), renovarSessao);
+router.get("/me", rateLimitSessao, autenticar, obterSessaoAtual);
+router.post("/logout", rateLimitSessao, autenticar, encerrarSessaoAtual);
 
 export default router;

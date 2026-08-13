@@ -16,7 +16,8 @@ function criarRateLimit(windowMs, max) {
 }
 
 export const rateLimitComum = criarRateLimit(15 * 60 * 1000, 300);
-export const rateLimitAuth = criarRateLimit(15 * 60 * 1000, 15);
+export const rateLimitAuthCritico = criarRateLimit(15 * 60 * 1000, 15);
+export const rateLimitSessao = criarRateLimit(15 * 60 * 1000, 120);
 export const rateLimitPluggy = criarRateLimit(15 * 60 * 1000, 30);
 export const rateLimitWebhook = criarRateLimit(5 * 60 * 1000, 120);
 
