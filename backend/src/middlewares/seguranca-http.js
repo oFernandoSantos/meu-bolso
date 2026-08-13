@@ -30,7 +30,23 @@ function criarRateLimit(windowMs, max) {
   });
 }
 
-export const rateLimitComum = criarRateLimit(15 * 60 * 1000, 300);
+function criarRateLimitComExcecao(windowMs, max, skip) {
+  return rateLimit({
+    windowMs,
+    max,
+    standardHeaders: true,
+    legacyHeaders: false,
+    skip,
+    keyGenerator: (request) => ipKeyGenerator(extrairIpReal(request)),
+    message: { erro: "Limite de requisicoes excedido. Tente novamente em instantes." },
+  });
+}
+
+export const rateLimitComum = criarRateLimitComExcecao(
+  15 * 60 * 1000,
+  300,
+  (request) => request.path.startsWith("/api/auth/"),
+);
 export const rateLimitAuthCritico = criarRateLimit(15 * 60 * 1000, 15);
 export const rateLimitSessao = criarRateLimit(15 * 60 * 1000, 120);
 export const rateLimitPluggy = criarRateLimit(15 * 60 * 1000, 30);
