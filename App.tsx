@@ -557,8 +557,20 @@ function notify(title: string, message: string) {
 }
 
 function humanizePluggyError(message: string): string {
+  const normalized = message.trim().toLowerCase();
+
   if (message === "TRIAL_CLIENT_ITEM_CREATE_NOT_ALLOWED") {
     return "Sua aplicacao Pluggy atual nao tem permissao para conectar contas reais. Habilite live/producao na Pluggy.";
+  }
+
+  if (
+    normalized === "forbidden" ||
+    normalized.includes("trial expirado") ||
+    normalized.includes("trial expired") ||
+    normalized.includes("aplicacao demo") ||
+    normalized.includes("proibido o uso comercial")
+  ) {
+    return "Sua conta Pluggy esta em modo demo/desenvolvimento e sem producao ativa. Para conectar bancos reais, ative o ambiente de producao da Pluggy e gere credenciais live.";
   }
 
   if (message === "ITEM_USER_ALREADY_EXISTS") {
