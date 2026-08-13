@@ -68,6 +68,15 @@ export function normalizeExpenseInput(input: ExpenseInput): ExpenseInput {
   };
 }
 
+/** Recalcula as parcelas usando a configuracao atual dos cartoes. */
+export function rebuildInstallments(expenses: Expense[], cards: Card[]): Installment[] {
+  const cardById = new Map(cards.map((card) => [card.id, card]));
+
+  return expenses.flatMap((expense) =>
+    buildInstallments(expense, expense.card_id ? (cardById.get(expense.card_id) ?? null) : null),
+  );
+}
+
 /** Junta parcelas, gasto, cartao e categoria de um mes. */
 export function entriesForMonth(
   month: string,

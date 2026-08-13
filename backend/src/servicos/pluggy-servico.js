@@ -205,14 +205,15 @@ export async function garantirWebhookPluggy() {
   if (!webhookUrl) {
     return {
       ativo: false,
-      motivo:
-        "API_EXTERNAL_URL ausente ou sem HTTPS. O webhook da Pluggy exige URL publica HTTPS.",
+      motivo: "API_EXTERNAL_URL ausente ou sem HTTPS. O webhook da Pluggy exige URL publica HTTPS.",
     };
   }
 
   const headers = headersWebhookPluggy();
   const webhooks = await listarWebhooksPluggy();
-  const existente = webhooks.find((webhook) => webhook?.url === webhookUrl && webhook?.event === "all");
+  const existente = webhooks.find(
+    (webhook) => webhook?.url === webhookUrl && webhook?.event === "all",
+  );
 
   if (!existente) {
     const criado = await criarWebhookPluggy({
@@ -240,11 +241,7 @@ export async function garantirWebhookPluggy() {
   return { ativo: true, webhook: existente, url: webhookUrl, existente: true };
 }
 
-export async function criarConnectTokenPluggy({
-  usuarioEmail,
-  itemId,
-  options = {},
-}) {
+export async function criarConnectTokenPluggy({ usuarioEmail, itemId, options = {} }) {
   await obterOuCriarUsuarioPorEmail(usuarioEmail);
   const webhookStatus = await garantirWebhookPluggy();
   const apiKey = await obterApiKey();
@@ -254,9 +251,7 @@ export async function criarConnectTokenPluggy({
     options: {
       ...options,
       clientUserId: usuarioEmail,
-      ...(webhookStatus.ativo && webhookStatus.url
-        ? { webhookUrl: webhookStatus.url }
-        : {}),
+      ...(webhookStatus.ativo && webhookStatus.url ? { webhookUrl: webhookStatus.url } : {}),
     },
   };
 

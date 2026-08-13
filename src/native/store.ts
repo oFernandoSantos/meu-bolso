@@ -1,7 +1,12 @@
 import { create } from "zustand";
 
 import { createId, emptyDatabase } from "../lib/storage";
-import { buildInstallments, normalizeExpenseInput, type ExpenseInput } from "../lib/summary";
+import {
+  buildInstallments,
+  normalizeExpenseInput,
+  rebuildInstallments,
+  type ExpenseInput,
+} from "../lib/summary";
 import type { Card, Category, Database, Expense, Installment, ThemeMode } from "../lib/types";
 
 interface AppState extends Database {
@@ -48,7 +53,9 @@ export const useNativeAppStore = create<AppState>()((set, get) => ({
       created_at: timestamp,
       updated_at: timestamp,
     };
-    const card = expense.card_id ? get().cards.find((item) => item.id === expense.card_id) ?? null : null;
+    const card = expense.card_id
+      ? (get().cards.find((item) => item.id === expense.card_id) ?? null)
+      : null;
     const installments = buildInstallments(expense, card);
     set((state) => ({
       expenses: [...state.expenses, expense],
@@ -65,7 +72,9 @@ export const useNativeAppStore = create<AppState>()((set, get) => ({
       ...normalized,
       updated_at: new Date().toISOString(),
     };
-    const card = updated.card_id ? get().cards.find((item) => item.id === updated.card_id) ?? null : null;
+    const card = updated.card_id
+      ? (get().cards.find((item) => item.id === updated.card_id) ?? null)
+      : null;
     const installments: Installment[] = buildInstallments(updated, card);
     set((state) => ({
       expenses: state.expenses.map((expense) => (expense.id === id ? updated : expense)),
@@ -94,12 +103,18 @@ export const useNativeAppStore = create<AppState>()((set, get) => ({
   },
 
   deleteCard: (id) => {
-    set((state) => ({
-      cards: state.cards.filter((card) => card.id !== id),
-      expenses: state.expenses.map((expense) =>
+    set((state) => {
+      const cards = state.cards.filter((card) => card.id !== id);
+      const expenses = state.expenses.map((expense) =>
         expense.card_id === id ? { ...expense, card_id: null } : expense,
-      ),
-    }));
+      );
+
+      return {
+        cards,
+        expenses,
+        installments: rebuildInstallments(expenses, cards),
+      };
+    });
   },
 
   addCategory: (input) => {

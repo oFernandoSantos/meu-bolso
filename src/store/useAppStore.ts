@@ -1,7 +1,13 @@
 import { create } from "zustand";
 import type { Card, Category, Database, Expense, Installment, ThemeMode } from "@/lib/types";
 import { createId, emptyDatabase, loadDatabase, saveDatabase } from "@/lib/storage";
-import { buildInstallments, normalizeExpenseInput, type ExpenseInput } from "@/lib/summary";
+import { queueRemoteDatabasePush } from "@/lib/sync";
+import {
+  buildInstallments,
+  normalizeExpenseInput,
+  rebuildInstallments,
+  type ExpenseInput,
+} from "@/lib/summary";
 
 interface AppState extends Database {
   hydrated: boolean;
@@ -22,145 +28,190 @@ interface AppState extends Database {
 
 const base = emptyDatabase();
 
-function persist(state: AppState): Database {
-  const db: Database = {
+function snapshotFromState(
+  state: AppState,
+  lastLocalChangeAt = new Date().toISOString(),
+): Database {
+  return {
     cards: state.cards,
     categories: state.categories,
     expenses: state.expenses,
     installments: state.installments,
-    settings: state.settings,
+    settings: {
+      ...state.settings,
+      sync: {
+        remote_updated_at: state.settings.sync?.remote_updated_at ?? null,
+        last_local_change_at: lastLocalChangeAt,
+      },
+    },
   };
-  saveDatabase(db);
-  return db;
 }
 
-export const useAppStore = create<AppState>()((set, get) => ({
-  ...base,
-  hydrated: false,
+export const useAppStore = create<AppState>()((set, get) => {
+  const persist = () => {
+    const now = new Date().toISOString();
+    const db = snapshotFromState(get(), now);
+    saveDatabase(db);
+    queueRemoteDatabasePush(db, (updatedAt) => {
+      if (!updatedAt) return;
+      set((state) => ({
+        settings: {
+          ...state.settings,
+          sync: {
+            remote_updated_at: updatedAt,
+            last_local_change_at: state.settings.sync?.last_local_change_at ?? now,
+          },
+        },
+      }));
+      saveDatabase(snapshotFromState(get(), get().settings.sync?.last_local_change_at ?? now));
+    });
+    return db;
+  };
 
-  hydrate: () => {
-    if (get().hydrated) return;
-    const db = loadDatabase();
-    set({ ...db, hydrated: true });
-  },
+  return {
+    ...base,
+    hydrated: false,
 
-  addExpense: (input) => {
-    const normalized = normalizeExpenseInput(input);
-    const timestamp = new Date().toISOString();
-    const expense: Expense = {
-      id: createId(),
-      ...normalized,
-      created_at: timestamp,
-      updated_at: timestamp,
-    };
-    const card = expense.card_id ? get().cards.find((item) => item.id === expense.card_id) ?? null : null;
-    const installments = buildInstallments(expense, card);
-    set((state) => ({
-      expenses: [...state.expenses, expense],
-      installments: [...state.installments, ...installments],
-    }));
-    persist(get());
-  },
+    hydrate: () => {
+      if (get().hydrated) return;
+      const db = loadDatabase();
+      set({ ...db, hydrated: true });
+    },
 
-  updateExpense: (id, input) => {
-    const normalized = normalizeExpenseInput(input);
-    const current = get().expenses.find((expense) => expense.id === id);
-    if (!current) return;
-    const updated: Expense = {
-      ...current,
-      ...normalized,
-      updated_at: new Date().toISOString(),
-    };
-    const card = updated.card_id ? get().cards.find((item) => item.id === updated.card_id) ?? null : null;
-    const installments: Installment[] = buildInstallments(updated, card);
-    set((state) => ({
-      expenses: state.expenses.map((expense) => (expense.id === id ? updated : expense)),
-      installments: [
-        ...state.installments.filter((installment) => installment.expense_id !== id),
-        ...installments,
-      ],
-    }));
-    persist(get());
-  },
+    addExpense: (input) => {
+      const normalized = normalizeExpenseInput(input);
+      const timestamp = new Date().toISOString();
+      const expense: Expense = {
+        id: createId(),
+        ...normalized,
+        created_at: timestamp,
+        updated_at: timestamp,
+      };
+      const card = expense.card_id
+        ? (get().cards.find((item) => item.id === expense.card_id) ?? null)
+        : null;
+      const installments = buildInstallments(expense, card);
+      set((state) => ({
+        expenses: [...state.expenses, expense],
+        installments: [...state.installments, ...installments],
+      }));
+      persist();
+    },
 
-  deleteExpense: (id) => {
-    set((state) => ({
-      expenses: state.expenses.filter((expense) => expense.id !== id),
-      installments: state.installments.filter((installment) => installment.expense_id !== id),
-    }));
-    persist(get());
-  },
+    updateExpense: (id, input) => {
+      const normalized = normalizeExpenseInput(input);
+      const current = get().expenses.find((expense) => expense.id === id);
+      if (!current) return;
+      const updated: Expense = {
+        ...current,
+        ...normalized,
+        updated_at: new Date().toISOString(),
+      };
+      const card = updated.card_id
+        ? (get().cards.find((item) => item.id === updated.card_id) ?? null)
+        : null;
+      const installments: Installment[] = buildInstallments(updated, card);
+      set((state) => ({
+        expenses: state.expenses.map((expense) => (expense.id === id ? updated : expense)),
+        installments: [
+          ...state.installments.filter((installment) => installment.expense_id !== id),
+          ...installments,
+        ],
+      }));
+      persist();
+    },
 
-  addCard: (input) => {
-    const timestamp = new Date().toISOString();
-    set((state) => ({
-      cards: [
-        ...state.cards,
-        { id: createId(), ...input, created_at: timestamp, updated_at: timestamp },
-      ],
-    }));
-    persist(get());
-  },
+    deleteExpense: (id) => {
+      set((state) => ({
+        expenses: state.expenses.filter((expense) => expense.id !== id),
+        installments: state.installments.filter((installment) => installment.expense_id !== id),
+      }));
+      persist();
+    },
 
-  updateCard: (id, input) => {
-    set((state) => ({
-      cards: state.cards.map((card) =>
-        card.id === id ? { ...card, ...input, updated_at: new Date().toISOString() } : card,
-      ),
-    }));
-    persist(get());
-  },
+    addCard: (input) => {
+      const timestamp = new Date().toISOString();
+      set((state) => ({
+        cards: [
+          ...state.cards,
+          { id: createId(), ...input, created_at: timestamp, updated_at: timestamp },
+        ],
+      }));
+      persist();
+    },
 
-  deleteCard: (id) => {
-    set((state) => ({
-      cards: state.cards.filter((card) => card.id !== id),
-      // Gastos ficam registrados, mas sem cartão vinculado.
-      expenses: state.expenses.map((expense) =>
-        expense.card_id === id ? { ...expense, card_id: null } : expense,
-      ),
-    }));
-    persist(get());
-  },
+    updateCard: (id, input) => {
+      set((state) => {
+        const updatedAt = new Date().toISOString();
+        const cards = state.cards.map((card) =>
+          card.id === id ? { ...card, ...input, updated_at: updatedAt } : card,
+        );
 
-  addCategory: (input) => {
-    const timestamp = new Date().toISOString();
-    set((state) => ({
-      categories: [
-        ...state.categories,
-        { id: createId(), ...input, created_at: timestamp, updated_at: timestamp },
-      ],
-    }));
-    persist(get());
-  },
+        return {
+          cards,
+          installments: rebuildInstallments(state.expenses, cards),
+        };
+      });
+      persist();
+    },
 
-  updateCategory: (id, input) => {
-    set((state) => ({
-      categories: state.categories.map((category) =>
-        category.id === id
-          ? { ...category, ...input, updated_at: new Date().toISOString() }
-          : category,
-      ),
-    }));
-    persist(get());
-  },
+    deleteCard: (id) => {
+      set((state) => {
+        const cards = state.cards.filter((card) => card.id !== id);
+        const expenses = state.expenses.map((expense) =>
+          expense.card_id === id ? { ...expense, card_id: null } : expense,
+        );
 
-  deleteCategory: (id) => {
-    set((state) => ({ categories: state.categories.filter((category) => category.id !== id) }));
-    persist(get());
-  },
+        return {
+          cards,
+          expenses,
+          installments: rebuildInstallments(expenses, cards),
+        };
+      });
+      persist();
+    },
 
-  setTheme: (theme) => {
-    set({ settings: { ...get().settings, theme } });
-    persist(get());
-  },
+    addCategory: (input) => {
+      const timestamp = new Date().toISOString();
+      set((state) => ({
+        categories: [
+          ...state.categories,
+          { id: createId(), ...input, created_at: timestamp, updated_at: timestamp },
+        ],
+      }));
+      persist();
+    },
 
-  replaceAll: (db) => {
-    set({ ...db });
-    persist(get());
-  },
+    updateCategory: (id, input) => {
+      set((state) => ({
+        categories: state.categories.map((category) =>
+          category.id === id
+            ? { ...category, ...input, updated_at: new Date().toISOString() }
+            : category,
+        ),
+      }));
+      persist();
+    },
 
-  clearAll: () => {
-    set({ ...emptyDatabase() });
-    persist(get());
-  },
-}));
+    deleteCategory: (id) => {
+      set((state) => ({ categories: state.categories.filter((category) => category.id !== id) }));
+      persist();
+    },
+
+    setTheme: (theme) => {
+      set({ settings: { ...get().settings, theme } });
+      persist();
+    },
+
+    replaceAll: (db) => {
+      set({ ...db });
+      saveDatabase(db);
+    },
+
+    clearAll: () => {
+      const db = emptyDatabase();
+      set({ ...db });
+      saveDatabase(db);
+    },
+  };
+});

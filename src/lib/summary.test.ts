@@ -4,6 +4,7 @@ import {
   cardMonthTotal,
   entriesForMonth,
   normalizeExpenseInput,
+  rebuildInstallments,
   sumEntries,
   totalsByCard,
   totalsByCategory,
@@ -96,7 +97,7 @@ const expenses = [mercado, notebook, pix, dinheiro];
 const installments = expenses.flatMap((expense) =>
   buildInstallments(
     expense,
-    expense.card_id ? cards.find((card) => card.id === expense.card_id) ?? null : null,
+    expense.card_id ? (cards.find((card) => card.id === expense.card_id) ?? null) : null,
   ),
 );
 
@@ -131,6 +132,95 @@ describe("parcelas", () => {
 
     const parcels = buildInstallments(invoiceCycleExpense, cards[0]!);
     expect(parcels[0]!.competence_month).toBe("2026-08");
+  });
+
+  it("joga compra antes do fechamento 19 para a fatura com vencimento no dia 01", () => {
+    const card = {
+      ...cards[0]!,
+      id: "card-virada",
+      closing_day: 19,
+      due_day: 1,
+    };
+
+    const beforeClosing = buildInstallments(
+      makeExpense({
+        id: "e7",
+        description: "Assinatura",
+        total_amount: 3000,
+        payment_method: "credit",
+        card_id: card.id,
+        expense_date: "2026-08-18",
+      }),
+      card,
+    );
+    const afterClosing = buildInstallments(
+      makeExpense({
+        id: "e8",
+        description: "Curso",
+        total_amount: 10000,
+        payment_method: "credit",
+        card_id: card.id,
+        expense_date: "2026-08-20",
+      }),
+      card,
+    );
+
+    expect(beforeClosing[0]!.competence_month).toBe("2026-09");
+    expect(afterClosing[0]!.competence_month).toBe("2026-10");
+  });
+
+  it("recalcula as parcelas quando o cartao muda", () => {
+    const rebuilt = rebuildInstallments(expenses, [
+      {
+        ...cards[0]!,
+        closing_day: 19,
+        due_day: 1,
+      },
+    ]);
+
+    const notebookInstallments = rebuilt.filter((item) => item.expense_id === notebook.id);
+    expect(notebookInstallments[0]!.competence_month).toBe("2026-09");
+    expect(notebookInstallments[1]!.competence_month).toBe("2026-10");
+  });
+
+  it("calcula a competencia separado para cada cartao", () => {
+    const cardA: Card = {
+      ...cards[0]!,
+      id: "card-a",
+      name: "Cartao A",
+      closing_day: 19,
+      due_day: 1,
+    };
+    const cardB: Card = {
+      ...cards[0]!,
+      id: "card-b",
+      name: "Cartao B",
+      closing_day: 25,
+      due_day: 30,
+    };
+
+    const expenseA = makeExpense({
+      id: "e9",
+      description: "Compra A",
+      total_amount: 10000,
+      payment_method: "credit",
+      card_id: cardA.id,
+      expense_date: "2026-08-20",
+    });
+    const expenseB = makeExpense({
+      id: "e10",
+      description: "Compra B",
+      total_amount: 10000,
+      payment_method: "credit",
+      card_id: cardB.id,
+      expense_date: "2026-08-20",
+    });
+
+    const installmentsA = buildInstallments(expenseA, cardA);
+    const installmentsB = buildInstallments(expenseB, cardB);
+
+    expect(installmentsA[0]!.competence_month).toBe("2026-10");
+    expect(installmentsB[0]!.competence_month).toBe("2026-08");
   });
 });
 

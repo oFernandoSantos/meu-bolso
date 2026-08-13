@@ -1,8 +1,11 @@
 import { addMonths, addWeeks, addYears, format, isValid, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const MONTH_KEY_RE = /^(\d{4})-(0[1-9]|1[0-2])$/;
+
 function safeDate(value: string | Date): Date {
-  const parsed = typeof value === "string" ? parseISO(value) : value;
+  const parsed = typeof value === "string" && ISO_DATE_RE.test(value) ? parseISO(value) : value;
   return isValid(parsed) ? parsed : new Date();
 }
 
@@ -12,8 +15,11 @@ export function monthKey(value: string | Date): string {
 }
 
 export function monthKeyToDate(key: string): Date {
-  const [year, month] = key.split("-");
-  const parsed = new Date(Number(year), Number(month ?? 1) - 1, 1);
+  const match = MONTH_KEY_RE.exec(key);
+  if (!match) return new Date();
+
+  const [, year, month] = match;
+  const parsed = new Date(Number(year), Number(month) - 1, 1);
   return isValid(parsed) ? parsed : new Date();
 }
 

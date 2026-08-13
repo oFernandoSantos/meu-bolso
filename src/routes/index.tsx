@@ -12,6 +12,7 @@ import { useMonthStore } from "@/store/useMonthStore";
 import { useAppStore } from "@/store/useAppStore";
 import { capitalize, monthName } from "@/lib/dates";
 import { formatCurrency } from "@/lib/money";
+import { monthBudgetSnapshot } from "@/lib/budget";
 import {
   sumEntries,
   totalsByCard,
@@ -69,11 +70,18 @@ function HomePage() {
   const entries = useMonthEntries(month);
   const expenses = useAppStore((state) => state.expenses);
   const categories = useAppStore((state) => state.categories);
+  const cards = useAppStore((state) => state.cards);
+  const installments = useAppStore((state) => state.installments);
+  const settings = useAppStore((state) => state.settings);
 
   const total = sumEntries(entries);
   const byMethod = totalsByPaymentMethod(entries);
   const byCategory = totalsByCategory(entries);
   const byCard = totalsByCard(entries);
+  const budget = monthBudgetSnapshot(
+    { expenses, categories, cards, installments, settings },
+    month,
+  );
 
   const latest: EntryView[] = [...entries]
     .sort((a, b) => b.expense.created_at.localeCompare(a.expense.created_at))
@@ -85,6 +93,17 @@ function HomePage() {
         <MonthSelector month={month} onChange={setMonth} />
 
         <SummaryCard highlight label={`Total gasto em ${monthName(month)}`} amount={total} />
+
+        <div className="grid grid-cols-2 gap-3">
+          <SummaryCard label="Renda fixa" amount={budget.fixedIncome} />
+          <SummaryCard label="Renda extra" amount={budget.extraIncome} />
+          <SummaryCard label="Saldo vindo do mes anterior" amount={budget.carriedBalance} />
+          <SummaryCard
+            label="Saldo do mes"
+            amount={budget.closingBalance}
+            icon={<Banknote className="size-3.5" />}
+          />
+        </div>
 
         <div className="grid grid-cols-2 gap-3">
           <SummaryCard

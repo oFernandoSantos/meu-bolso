@@ -131,7 +131,10 @@ const pwaRegisterBlock = `
 await mkdir(distDir, { recursive: true });
 
 await copyFile(path.join(publicDir, "favicon.png"), path.join(distDir, "favicon.png"));
-await copyFile(path.join(publicDir, "apple-touch-icon.png"), path.join(distDir, "apple-touch-icon.png"));
+await copyFile(
+  path.join(publicDir, "apple-touch-icon.png"),
+  path.join(distDir, "apple-touch-icon.png"),
+);
 await writeFile(manifestPath, JSON.stringify(manifest, null, 2));
 await writeFile(serviceWorkerPath, serviceWorker);
 

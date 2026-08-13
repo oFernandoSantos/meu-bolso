@@ -5,7 +5,10 @@ import { z } from "zod";
 const raizProjeto = resolve(process.cwd(), "..");
 config({ path: process.env.NODE_ENV === "test" ? ".env.test" : ".env" });
 config({ path: ".env.local", override: false });
-config({ path: resolve(raizProjeto, process.env.NODE_ENV === "test" ? ".env.test" : ".env"), override: false });
+config({
+  path: resolve(raizProjeto, process.env.NODE_ENV === "test" ? ".env.test" : ".env"),
+  override: false,
+});
 config({ path: resolve(raizProjeto, ".env.local"), override: false });
 
 const esquema = z.object({
@@ -17,7 +20,9 @@ const esquema = z.object({
   REQUEST_TIMEOUT_MS: z.coerce.number().int().positive().default(15000),
   ORIGENS_PERMITIDAS: z
     .string()
-    .default("http://localhost:3000,http://localhost:5173,http://127.0.0.1:5173,http://localhost:8081"),
+    .default(
+      "http://localhost:3000,http://localhost:5173,http://127.0.0.1:5173,http://localhost:8081",
+    ),
   DATABASE_URL: z.string().min(1, "DATABASE_URL obrigatoria"),
   POSTGRES_HOST: z.string().default("postgres"),
   POSTGRES_PORT: z.coerce.number().int().positive().default(5432),

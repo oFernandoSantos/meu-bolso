@@ -1,5 +1,6 @@
-import { monthKey } from "./dates";
+import { monthKey, shiftMonth } from "./dates";
 import { createId } from "./storage";
+import { buildInstallments } from "./summary";
 import type { Card, Category, Database, Expense, PaymentMethod } from "./types";
 
 const IMPORT_NOTE_PREFIX = "[pluggy:";
@@ -27,6 +28,12 @@ export type PluggyAccount = {
   name?: string | null;
   marketingName?: string | null;
   number?: string | null;
+  creditData?: {
+    limit?: number | null;
+    closeDay?: number | null;
+    dueDay?: number | null;
+  } | null;
+  creditLimit?: number | null;
 };
 
 export type PluggyTransaction = {
@@ -83,15 +90,33 @@ function toCents(amount: number): number {
   return Math.round(Math.abs(amount) * 100);
 }
 
-function transactionAlreadyImported(expenses: Expense[], transactionId: string): boolean {
+function transactionKey(itemId: string, accountId: string, transactionId: string): string {
+  return `${itemId}:${accountId}:${transactionId}`;
+}
+
+function importedNote(itemId: string, accountId: string, transactionId: string): string {
+  return `${IMPORT_NOTE_PREFIX}${transactionKey(itemId, accountId, transactionId)}]`;
+}
+
+function transactionAlreadyImported(
+  expenses: Expense[],
+  itemId: string,
+  accountId: string,
+  transactionId: string,
+): boolean {
   return expenses.some((expense) =>
-    expense.notes?.includes(`${IMPORT_NOTE_PREFIX}${transactionId}]`),
+    expense.notes?.includes(importedNote(itemId, accountId, transactionId)),
   );
 }
 
-function removeImportedTransaction(db: Database, transactionId: string): Database {
+function removeImportedTransaction(
+  db: Database,
+  itemId: string,
+  accountId: string,
+  transactionId: string,
+): Database {
   const expense = db.expenses.find((item) =>
-    item.notes?.includes(`${IMPORT_NOTE_PREFIX}${transactionId}]`),
+    item.notes?.includes(importedNote(itemId, accountId, transactionId)),
   );
   if (!expense) return db;
 
@@ -124,23 +149,34 @@ function ensureCard(
   const label = cardLabel(account);
   const suffix = accountSuffix(account);
 
-  const existing = db.cards.find(
-    (card) =>
-      normalizeText(card.name) === normalizeText(label) &&
-      normalizeText(card.institution ?? "") === normalizeText(connectorName ?? ""),
-  );
+  const finalName = suffix ? `${label} ${suffix}` : label;
+  const existing = db.cards.find((card) => {
+    return (
+      normalizeText(card.name) === normalizeText(finalName) &&
+      normalizeText(card.institution ?? "") === normalizeText(connectorName ?? "") &&
+      card.type === (method === "credit" ? "credit" : "debit")
+    );
+  });
 
   if (existing) return [db, existing.id];
 
   const now = new Date().toISOString();
   const card: Card = {
     id: createId(),
-    name: suffix ? `${label} ${suffix}` : label,
+    name: finalName,
     institution: connectorName,
     type: method === "credit" ? "credit" : "debit",
-    credit_limit: null,
-    closing_day: null,
-    due_day: null,
+    brand: null,
+    last4: suffix || null,
+    credit_limit:
+      typeof account.creditData?.limit === "number"
+        ? toCents(account.creditData.limit)
+        : typeof account.creditLimit === "number"
+          ? toCents(account.creditLimit)
+          : null,
+    closing_day:
+      typeof account.creditData?.closeDay === "number" ? account.creditData.closeDay : null,
+    due_day: typeof account.creditData?.dueDay === "number" ? account.creditData.dueDay : null,
     color: method === "credit" ? "#2563eb" : "#64748b",
     active: true,
     created_at: now,
@@ -186,7 +222,10 @@ function shouldImportTransaction(account: PluggyAccount, transaction: PluggyTran
   return amount < 0;
 }
 
-function shouldIgnoreAsInvoicePayment(account: PluggyAccount, transaction: PluggyTransaction): boolean {
+function shouldIgnoreAsInvoicePayment(
+  account: PluggyAccount,
+  transaction: PluggyTransaction,
+): boolean {
   if (account.type === "CREDIT") return false;
 
   const text = normalizeText(
@@ -204,42 +243,48 @@ function appendExpense(
   paymentMethod: PaymentMethod,
   cardId: string | null,
   categoryId: string,
+  itemId: string,
 ): Database {
   const now = new Date().toISOString();
   const description =
     transaction.description?.trim() || transaction.descriptionRaw?.trim() || "Transacao Pluggy";
   const amount = toCents(Number(transaction.amount));
+  const totalInstallments = Math.max(
+    1,
+    Math.floor(transaction.creditCardMetadata?.totalInstallments ?? 1),
+  );
+  const installmentNumber = Math.max(
+    1,
+    Math.floor(transaction.creditCardMetadata?.installmentNumber ?? 1),
+  );
 
   const expense: Expense = {
     id: createId(),
     description,
-    total_amount: amount,
+    total_amount: amount * totalInstallments,
     expense_date: transaction.date.slice(0, 10),
     payment_method: paymentMethod,
     card_id: cardId,
     category_id: categoryId,
-    installment_count: 1,
-    notes: `${IMPORT_NOTE_PREFIX}${transaction.id}]`,
+    installment_count: paymentMethod === "credit" ? totalInstallments : 1,
+    notes: importedNote(itemId, transaction.accountId, transaction.id),
     created_at: now,
     updated_at: now,
   };
 
+  const card = cardId ? (db.cards.find((item) => item.id === cardId) ?? null) : null;
+  const installments = buildInstallments(expense, card).map((installment) => ({
+    ...installment,
+    competence_month:
+      paymentMethod === "credit" && totalInstallments > 1
+        ? shiftMonth(installment.competence_month, -(installmentNumber - 1))
+        : installment.competence_month,
+  }));
+
   return {
     ...db,
     expenses: [...db.expenses, expense],
-    installments: [
-      ...db.installments,
-      {
-        id: createId(),
-        expense_id: expense.id,
-        installment_number: 1,
-        installment_count: 1,
-        amount,
-        competence_month: monthKey(expense.expense_date),
-        created_at: now,
-        updated_at: now,
-      },
-    ],
+    installments: [...db.installments, ...installments],
   };
 }
 
@@ -248,6 +293,32 @@ export function mergePluggySync(db: Database, payload: PluggySyncPayload): Plugg
   let importedCount = 0;
   let latestImportedMonth: string | null = null;
   const connectorName = payload.item.connector?.name ?? null;
+  const items = [
+    ...nextDb.settings.pluggy.items.filter((item) => item.item_id !== payload.item.id),
+    {
+      item_id: payload.item.id,
+      connector_name: connectorName,
+      item_status: payload.item.executionStatus ?? payload.item.status ?? null,
+      last_sync_at: new Date().toISOString(),
+      last_error: null,
+    },
+  ];
+
+  nextDb = {
+    ...nextDb,
+    settings: {
+      ...nextDb.settings,
+      pluggy: {
+        ...nextDb.settings.pluggy,
+        item_id: payload.item.id,
+        connector_name: connectorName,
+        item_status: payload.item.executionStatus ?? payload.item.status ?? null,
+        last_sync_at: new Date().toISOString(),
+        last_error: null,
+        items,
+      },
+    },
+  };
 
   for (const account of payload.accounts) {
     const transactions = payload.transactionsByAccount[account.id] ?? [];
@@ -263,12 +334,16 @@ export function mergePluggySync(db: Database, payload: PluggySyncPayload): Plugg
 
     for (const transaction of transactions) {
       if (shouldIgnoreAsInvoicePayment(account, transaction)) {
-        nextDb = removeImportedTransaction(nextDb, transaction.id);
+        nextDb = removeImportedTransaction(nextDb, payload.item.id, account.id, transaction.id);
         continue;
       }
 
       if (!shouldImportTransaction(account, transaction)) continue;
-      if (transactionAlreadyImported(nextDb.expenses, transaction.id)) continue;
+      if (
+        transactionAlreadyImported(nextDb.expenses, payload.item.id, account.id, transaction.id)
+      ) {
+        continue;
+      }
 
       const paymentMethod = inferPaymentMethod(account, transaction);
       const finalCardId = paymentMethod === "credit" || paymentMethod === "debit" ? cardId : null;
@@ -276,7 +351,14 @@ export function mergePluggySync(db: Database, payload: PluggySyncPayload): Plugg
       const ensured = ensureCategory(nextDb, categoryLabel);
       nextDb = ensured[0];
       const categoryId = ensured[1];
-      nextDb = appendExpense(nextDb, transaction, paymentMethod, finalCardId, categoryId);
+      nextDb = appendExpense(
+        nextDb,
+        transaction,
+        paymentMethod,
+        finalCardId,
+        categoryId,
+        payload.item.id,
+      );
       latestImportedMonth = monthKey(transaction.date.slice(0, 10));
       importedCount += 1;
     }

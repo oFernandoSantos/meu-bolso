@@ -14,6 +14,7 @@ import assinaturasRouter from "./assinaturas.js";
 import notificacoesRouter from "./notificacoes.js";
 import integracoesRouter from "./integracoes.js";
 import pluggyRouter from "./pluggy.js";
+import syncRouter from "./sync.js";
 
 const router = Router();
 
@@ -32,5 +33,6 @@ router.use("/assinaturas", assinaturasRouter);
 router.use("/notificacoes", notificacoesRouter);
 router.use("/integracoes", integracoesRouter);
 router.use("/pluggy", pluggyRouter);
+router.use("/sync", syncRouter);
 
 export default router;

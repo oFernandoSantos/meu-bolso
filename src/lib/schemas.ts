@@ -1,10 +1,12 @@
 import { z } from "zod";
 
+const isoDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Informe uma data valida");
+
 export const expenseSchema = z
   .object({
     description: z.string().trim().min(1, "Informe a descricao"),
     total_amount: z.number().int().positive("Informe um valor maior que zero"),
-    expense_date: z.string().min(1, "Informe a data"),
+    expense_date: isoDateSchema,
     payment_method: z.enum(["credit", "debit", "pix", "cash", "other"]),
     card_id: z.string().nullable(),
     category_id: z.string().min(1, "Escolha uma categoria"),
@@ -36,7 +38,10 @@ export const cardSchema = z
     color: z.string().min(1),
     active: z.boolean(),
   })
-  .refine((data) => (data.type === "debit" ? true : true));
+  .refine((data) => data.type === "debit" || (data.closing_day !== null && data.due_day !== null), {
+    message: "Informe fechamento e vencimento do cartao",
+    path: ["closing_day"],
+  });
 
 export type CardFormValues = z.infer<typeof cardSchema>;
 

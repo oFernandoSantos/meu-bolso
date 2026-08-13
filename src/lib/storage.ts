@@ -72,6 +72,7 @@ export function emptyDatabase(): Database {
         last_sync_at: null,
         last_error: null,
         proxy_url: null,
+        items: [],
       },
       auth: {
         user_id: null,
@@ -80,6 +81,10 @@ export function emptyDatabase(): Database {
         refresh_token: null,
         expires_at: null,
         session_active: false,
+      },
+      sync: {
+        remote_updated_at: null,
+        last_local_change_at: null,
       },
       monthly_income_by_month: {},
       monthly_income_extras_by_month: {},
@@ -110,6 +115,26 @@ function asNullableNumber(value: unknown): number | null {
 
 function asBoolean(value: unknown, fallback = false): boolean {
   return typeof value === "boolean" ? value : fallback;
+}
+
+function asPluggyItems(value: unknown) {
+  if (!Array.isArray(value)) return [];
+
+  return value.flatMap((item) => {
+    if (!isObject(item)) return [];
+    const item_id = asString(item["item_id"]).trim();
+    if (!item_id) return [];
+
+    return [
+      {
+        item_id,
+        connector_name: asNullableString(item["connector_name"]),
+        item_status: asNullableString(item["item_status"]),
+        last_sync_at: asNullableString(item["last_sync_at"]),
+        last_error: asNullableString(item["last_error"]),
+      },
+    ];
+  });
 }
 
 function asRecordOfNumbers(value: unknown): Record<string, number> {
@@ -334,6 +359,7 @@ export function normalizeDatabase(input: unknown): Database {
               last_sync_at: asNullableString(input["settings"]["pluggy"]["last_sync_at"]),
               last_error: asNullableString(input["settings"]["pluggy"]["last_error"]),
               proxy_url: asNullableString(input["settings"]["pluggy"]["proxy_url"]),
+              items: asPluggyItems(input["settings"]["pluggy"]["items"]),
             }
           : base.settings.pluggy,
         auth: isObject(input["settings"]["auth"])
@@ -346,6 +372,14 @@ export function normalizeDatabase(input: unknown): Database {
               session_active: asBoolean(input["settings"]["auth"]["session_active"], false),
             }
           : base.settings.auth,
+        sync: isObject(input["settings"]["sync"])
+          ? {
+              remote_updated_at: asNullableString(input["settings"]["sync"]["remote_updated_at"]),
+              last_local_change_at: asNullableString(
+                input["settings"]["sync"]["last_local_change_at"],
+              ),
+            }
+          : base.settings.sync,
         monthly_income_by_month: asRecordOfNumbers(input["settings"]["monthly_income_by_month"]),
         monthly_income_extras_by_month: asRecordOfIncomeExtras(
           input["settings"]["monthly_income_extras_by_month"],

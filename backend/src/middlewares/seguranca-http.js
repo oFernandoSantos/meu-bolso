@@ -42,10 +42,8 @@ function criarRateLimitComExcecao(windowMs, max, skip) {
   });
 }
 
-export const rateLimitComum = criarRateLimitComExcecao(
-  15 * 60 * 1000,
-  300,
-  (request) => request.path.startsWith("/api/auth/"),
+export const rateLimitComum = criarRateLimitComExcecao(15 * 60 * 1000, 300, (request) =>
+  request.path.startsWith("/api/auth/"),
 );
 export const rateLimitAuthCritico = criarRateLimit(15 * 60 * 1000, 15);
 export const rateLimitSessao = criarRateLimit(15 * 60 * 1000, 120);

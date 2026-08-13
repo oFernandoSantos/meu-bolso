@@ -198,16 +198,19 @@ async function obterConexaoPorItemId(client, itemId) {
   return resultado.rows[0] ?? null;
 }
 
-async function salvarConexao(client, {
-  usuarioId,
-  integracaoBancariaId,
-  itemId,
-  connectorId,
-  status,
-  ultimoErro = null,
-  ultimoWebhookId = null,
-  atualizarSincronizacao = false,
-}) {
+async function salvarConexao(
+  client,
+  {
+    usuarioId,
+    integracaoBancariaId,
+    itemId,
+    connectorId,
+    status,
+    ultimoErro = null,
+    ultimoWebhookId = null,
+    atualizarSincronizacao = false,
+  },
+) {
   const existente = await obterConexaoPorItemId(client, itemId);
 
   if (existente) {
@@ -277,12 +280,10 @@ async function salvarConexao(client, {
   return criado.rows[0];
 }
 
-async function registrarSincronizacao(client, {
-  usuarioId,
-  conexaoPluggyId,
-  origem,
-  idempotenciaChave = null,
-}) {
+async function registrarSincronizacao(
+  client,
+  { usuarioId, conexaoPluggyId, origem, idempotenciaChave = null },
+) {
   const criada = await client.query(
     `
       insert into public.sincronizacoes (
@@ -303,15 +304,18 @@ async function registrarSincronizacao(client, {
   return criada.rows[0]?.id ?? null;
 }
 
-async function finalizarSincronizacao(client, {
-  sincronizacaoId,
-  status,
-  totalProcessado,
-  totalCriado,
-  totalAtualizado,
-  totalIgnorado,
-  detalheErro = null,
-}) {
+async function finalizarSincronizacao(
+  client,
+  {
+    sincronizacaoId,
+    status,
+    totalProcessado,
+    totalCriado,
+    totalAtualizado,
+    totalIgnorado,
+    detalheErro = null,
+  },
+) {
   if (!sincronizacaoId) return;
   await client.query(
     `
@@ -368,12 +372,7 @@ async function obterOuCriarCategoria(client, usuarioId, nome) {
   return insercao.rows[0]?.id ?? null;
 }
 
-async function upsertContaOuCartaoPluggy(client, {
-  usuarioId,
-  itemId,
-  connectorName,
-  account,
-}) {
+async function upsertContaOuCartaoPluggy(client, { usuarioId, itemId, connectorName, account }) {
   const nome = nomeContaPluggy(account);
   const saldo = valorMonetario(account?.balance ?? account?.currentBalance ?? 0);
   const identificadorConta = chaveContaExterna(itemId, account.id);
@@ -596,16 +595,16 @@ async function upsertContaOuCartaoPluggy(client, {
   };
 }
 
-async function upsertTransacaoPluggy(client, {
-  usuarioId,
-  conexaoPluggyId,
-  itemId,
-  account,
-  referenciasConta,
-  transaction,
-}) {
+async function upsertTransacaoPluggy(
+  client,
+  { usuarioId, conexaoPluggyId, itemId, account, referenciasConta, transaction },
+) {
   const identificadorExterno = chaveTransacaoExterna(itemId, transaction.id);
-  const categoriaId = await obterOuCriarCategoria(client, usuarioId, transaction?.category || "Outros");
+  const categoriaId = await obterOuCriarCategoria(
+    client,
+    usuarioId,
+    transaction?.category || "Outros",
+  );
   const valorAbsoluto = Math.abs(valorMonetario(transaction?.amount || 0));
   const tipo = tipoTransacaoInterna(transaction);
   const formaPagamento = formaPagamentoInterna(account, transaction);
@@ -694,9 +693,7 @@ async function upsertTransacaoPluggy(client, {
       referenciasConta.contaId,
       referenciasConta.cartaoId,
       categoriaId,
-      transaction?.description?.trim() ||
-        transaction?.descriptionRaw?.trim() ||
-        "Transacao Pluggy",
+      transaction?.description?.trim() || transaction?.descriptionRaw?.trim() || "Transacao Pluggy",
       valorAbsoluto,
       tipo,
       formaPagamento,

@@ -36,3 +36,5 @@ backend/node_modules
 !.env.example
 infraestrutura/backups/arquivos
 *.sql.gz
+.npm-cache/
+cloudflared.exe
